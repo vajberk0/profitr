@@ -130,6 +130,12 @@
 				{#if portfolioStore.activePortfolio}
 					<div class="flex items-center gap-2 px-4">
 						<a
+							href="/portfolio/{portfolioStore.activePortfolio.id}/import"
+							class="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-surface-alt transition-colors"
+						>
+							↑ Import CSV
+						</a>
+						<a
 							href="/portfolio/{portfolioStore.activePortfolio.id}/add"
 							class="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
 						>

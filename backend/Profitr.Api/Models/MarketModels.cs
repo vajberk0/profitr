@@ -4,7 +4,8 @@ public record TickerSearchResult(
     string Symbol,
     string Name,
     string Type,        // EQUITY, ETF, ETC
-    string Exchange
+    string Exchange,
+    string ExchangeDisplay
 );
 
 public record QuoteResult(

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createChart, type IChartApi, ColorType } from 'lightweight-charts';
+	import { createChart, type IChartApi, ColorType, AreaSeries } from 'lightweight-charts';
 	import type { ChartDataPoint } from '$lib/api/client';
 
 	let { data, currency }: { data: ChartDataPoint[]; currency: string } = $props();
@@ -15,6 +15,7 @@
 		chart = createChart(chartContainer, {
 			width: chartContainer.clientWidth,
 			height: 300,
+			attributionLogo: false,
 			layout: {
 				background: { type: ColorType.Solid, color: '#ffffff' },
 				textColor: '#64748b',
@@ -37,7 +38,7 @@
 			}
 		});
 
-		const areaSeries = chart.addAreaSeries({
+		const areaSeries = chart.addSeries(AreaSeries, {
 			lineColor: '#2563eb',
 			topColor: 'rgba(37, 99, 235, 0.3)',
 			bottomColor: 'rgba(37, 99, 235, 0.02)',

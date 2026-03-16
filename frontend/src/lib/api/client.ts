@@ -61,6 +61,33 @@ export const transactions = {
 	delete: (id: string) => request<void>(`/api/transactions/${id}`, { method: 'DELETE' })
 };
 
+// Import
+export const importApi = {
+	parse: async (portfolioId: string, file: File): Promise<ImportPreviewResponse> => {
+		const formData = new FormData();
+		formData.append('file', file);
+		const res = await fetch(`/api/portfolios/${portfolioId}/transactions/import/parse`, {
+			method: 'POST',
+			credentials: 'include',
+			body: formData
+		});
+		if (res.status === 401) {
+			window.location.href = '/';
+			throw new Error('Unauthorized');
+		}
+		if (!res.ok) {
+			const text = await res.text();
+			throw new Error(text || `HTTP ${res.status}`);
+		}
+		return res.json();
+	},
+	confirm: (portfolioId: string, data: ImportConfirmRequest) =>
+		request<ImportResultResponse>(`/api/portfolios/${portfolioId}/transactions/import/confirm`, {
+			method: 'POST',
+			body: JSON.stringify(data)
+		})
+};
+
 // Dividends
 export const dividends = {
 	list: (portfolioId: string) =>
@@ -199,6 +226,7 @@ export interface TickerSearchResult {
 	name: string;
 	type: string;
 	exchange: string;
+	exchangeDisplay: string;
 }
 
 export interface QuoteResult {
@@ -233,4 +261,59 @@ export interface HistoryPriceResult {
 export interface CurrencyInfo {
 	code: string;
 	name: string;
+}
+
+export interface ImportPreviewRow {
+	rowIndex: number;
+	date: string;
+	symbol: string;
+	instrumentName: string;
+	assetType: string;
+	transactionType: string;
+	quantity: number;
+	pricePerUnit: number;
+	nativeCurrency: string;
+	commission: number;
+	isValid: boolean;
+	error: string | null;
+}
+
+export interface SymbolMapping {
+	csvSymbol: string;
+	resolved: boolean;
+	yahooSymbol: string | null;
+	instrumentName: string | null;
+	assetType: string | null;
+	suggestions: TickerSearchResult[];
+}
+
+export interface ImportPreviewResponse {
+	rows: ImportPreviewRow[];
+	totalRows: number;
+	validRows: number;
+	skippedRows: number;
+	symbolMappings: Record<string, SymbolMapping>;
+}
+
+export interface ImportConfirmRow {
+	date: string;
+	symbol: string;
+	instrumentName: string;
+	assetType: string;
+	transactionType: string;
+	quantity: number;
+	pricePerUnit: number;
+	nativeCurrency: string;
+	notes?: string;
+}
+
+export interface ImportConfirmRequest {
+	rows: ImportConfirmRow[];
+}
+
+export interface ImportResultResponse {
+	importedCount: number;
+	skippedCount: number;
+	errors: string[];
+	transactions: Transaction[];
 }

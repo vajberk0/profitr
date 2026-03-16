@@ -29,9 +29,10 @@ public class YahooFinanceService(HttpClient httpClient, IMemoryCache cache, ILog
                     var name = q.TryGetProperty("shortname", out var sn) ? sn.GetString() ?? "" : "";
                     var type = q.TryGetProperty("quoteType", out var qt) ? qt.GetString() ?? "" : "";
                     var exchange = q.TryGetProperty("exchange", out var ex) ? ex.GetString() ?? "" : "";
+                    var exchDisp = q.TryGetProperty("exchDisp", out var ed) ? ed.GetString() ?? exchange : exchange;
 
                     if (!string.IsNullOrEmpty(symbol))
-                        results.Add(new TickerSearchResult(symbol, name, NormalizeAssetType(type), exchange));
+                        results.Add(new TickerSearchResult(symbol, name, NormalizeAssetType(type), exchange, exchDisp));
                 }
             }
 

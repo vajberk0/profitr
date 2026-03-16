@@ -53,23 +53,26 @@ Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-cur
 
 ## How to Run
 
-### Start both servers (from any terminal):
+### Rebuild backend after changes:
 ```
-cd backend/Profitr.Api && start "Profitr Backend" cmd /c "dotnet run --urls http://localhost:5000"
-cd frontend && start "Profitr Frontend" cmd /c "npm run dev"
-```
-
-- Backend: http://localhost:5000 (also serves the built frontend from `wwwroot/`)
-- Frontend dev server: http://localhost:5173 (with HMR, proxies `/api` to backend)
-
-### Run tests:
-```
-cd backend && dotnet test
+cd backend/Profitr.Api && dotnet build
 ```
 
 ### Rebuild frontend into backend wwwroot:
 ```
 cd frontend && npm run build
+```
+
+### Batch file that runs project (does `npm run build` on frontend and `dotnet run` on backend), uses `start` to open new window:
+```
+start runapp.bat
+```
+
+- Backend URL: http://localhost:5000 (also serves the built frontend from `wwwroot/`)
+
+### Run tests:
+```
+cd backend && dotnet test
 ```
 
 ## Key Design Decisions
@@ -90,5 +93,4 @@ Credentials are in `appsettings.Development.json` (gitignored). The authorized r
 - Price alerts / notifications
 - Data export (CSV/PDF)
 - Mobile-specific responsive polish
-- Dark mode
 - Toast notifications for actions

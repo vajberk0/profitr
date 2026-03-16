@@ -92,6 +92,7 @@ app.UseStaticFiles();
 app.MapAuthEndpoints();
 app.MapPortfolioEndpoints();
 app.MapTransactionEndpoints();
+app.MapImportEndpoints();
 app.MapDividendEndpoints();
 app.MapMarketEndpoints();
 app.MapFxEndpoints();
