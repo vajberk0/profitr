@@ -15,8 +15,8 @@
 		chart = createChart(chartContainer, {
 			width: chartContainer.clientWidth,
 			height: 300,
-			attributionLogo: false,
 			layout: {
+				attributionLogo: false,
 				background: { type: ColorType.Solid, color: '#ffffff' },
 				textColor: '#64748b',
 				fontFamily: 'system-ui'

@@ -63,7 +63,7 @@ cd backend/Profitr.Api && dotnet build
 cd frontend && npm run build
 ```
 
-### Batch file that runs project (does `npm run build` on frontend and `dotnet run` on backend), uses `start` to open new window:
+### RUN BOTH (does `npm run build` on frontend and `dotnet run` on backend), uses `start` to open new window:
 ```
 start runapp.bat
 ```
