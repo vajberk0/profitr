@@ -20,15 +20,17 @@ public static class PortfolioEndpoints
 
             var portfolios = await db.Portfolios
                 .Where(p => p.UserId == userId)
-                .Select(p => new PortfolioDto(
-                    p.Id, p.Name, p.IsDefault, p.CreatedAt,
-                    p.Transactions.Select(t => t.Symbol).Distinct().Count()
-                ))
+                .Include(p => p.Transactions)
                 .OrderByDescending(p => p.IsDefault)
                 .ThenBy(p => p.Name)
                 .ToListAsync();
 
-            return Results.Ok(portfolios);
+            var dtos = portfolios.Select(p => new PortfolioDto(
+                p.Id, p.Name, p.IsDefault, p.CreatedAt,
+                p.Transactions.Select(t => t.Symbol).Distinct().Count()
+            )).ToList();
+
+            return Results.Ok(dtos);
         });
 
         group.MapPost("/", async (HttpContext ctx, ProfitrDbContext db, CreatePortfolioRequest req) =>
