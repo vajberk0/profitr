@@ -2,10 +2,12 @@ import {
 	portfolios as portfolioApi,
 	transactions as txnApi,
 	dividends as divApi,
+	cash as cashApi,
 	type Portfolio,
 	type PortfolioSummary,
 	type Transaction,
 	type Dividend,
+	type CashTransaction,
 	type ChartDataPoint
 } from '$lib/api/client';
 
@@ -15,6 +17,7 @@ class PortfolioStore {
 	summary = $state<PortfolioSummary | null>(null);
 	transactions = $state<Transaction[]>([]);
 	dividendsList = $state<Dividend[]>([]);
+	cashTransactions = $state<CashTransaction[]>([]);
 	history = $state<ChartDataPoint[]>([]);
 	loading = $state(false);
 	historyRange = $state('1y');
@@ -82,10 +85,15 @@ class PortfolioStore {
 		this.dividendsList = await divApi.list(this.activePortfolio.id);
 	}
 
+	async loadCashTransactions() {
+		if (!this.activePortfolio) return;
+		this.cashTransactions = await cashApi.list(this.activePortfolio.id);
+	}
+
 	async loadAll() {
 		await this.loadPortfolios();
 		if (this.activePortfolio) {
-			await Promise.all([this.loadSummary(), this.loadHistory(), this.loadTransactions(), this.loadDividends()]);
+			await Promise.all([this.loadSummary(), this.loadHistory(), this.loadTransactions(), this.loadDividends(), this.loadCashTransactions()]);
 		}
 	}
 }

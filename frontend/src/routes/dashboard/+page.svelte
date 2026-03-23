@@ -8,7 +8,7 @@
 	import TransactionList from '$lib/components/TransactionList.svelte';
 	import { formatCurrency, formatPercent, pnlColor, pnlBgColor } from '$lib/utils/format';
 
-	let activeTab = $state<'positions' | 'transactions' | 'dividends'>('positions');
+	let activeTab = $state<'positions' | 'transactions' | 'dividends' | 'cash'>('positions');
 	let refreshInterval: ReturnType<typeof setInterval>;
 	const ranges = ['1w', '1m', '3m', '6m', '1y', 'all'];
 
@@ -41,7 +41,7 @@
 		{@const s = portfolioStore.summary}
 
 		<!-- Summary Cards -->
-		<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+		<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Total Value</p>
 				<p class="text-2xl font-bold">{formatCurrency(s.totalValue, s.displayCurrency)}</p>
@@ -60,6 +60,15 @@
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Total Dividends</p>
 				<p class="text-2xl font-bold">{formatCurrency(s.totalDividends, s.displayCurrency)}</p>
+			</div>
+			<div class="rounded-xl border p-5 {s.cashBalance < 0 ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800' : 'bg-surface border-border'}">
+				<p class="text-sm text-text-muted mb-1">Cash Balance</p>
+				<p class="text-2xl font-bold {pnlColor(s.cashBalance)}">
+					{formatCurrency(s.cashBalance, s.displayCurrency)}
+				</p>
+				{#if s.cashBalance < 0}
+					<p class="text-xs text-text-muted mt-1">Margin / unrecorded deposits</p>
+				{/if}
 			</div>
 		</div>
 
@@ -124,6 +133,16 @@
 				>
 					Dividends ({portfolioStore.dividendsList.length})
 				</button>
+				<button
+					onclick={() => (activeTab = 'cash')}
+					class="px-5 py-3 text-sm font-medium border-b-2 transition-colors {
+						activeTab === 'cash'
+							? 'border-primary text-primary'
+							: 'border-transparent text-text-muted hover:text-text'
+					}"
+				>
+					Cash ({portfolioStore.cashTransactions.length})
+				</button>
 
 				<div class="flex-1"></div>
 
@@ -147,6 +166,12 @@
 						>
 							+ Dividend
 						</a>
+						<a
+							href="/portfolio/{portfolioStore.activePortfolio.id}/cash"
+							class="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-surface-alt transition-colors"
+						>
+							💰 Deposit/Withdraw
+						</a>
 					</div>
 				{/if}
 			</div>
@@ -156,7 +181,7 @@
 					<PositionsTable positions={s.positions} displayCurrency={s.displayCurrency} />
 				{:else if activeTab === 'transactions'}
 					<TransactionList items={portfolioStore.transactions} />
-				{:else}
+				{:else if activeTab === 'dividends'}
 					{#if portfolioStore.dividendsList.length === 0}
 						<p class="text-text-muted text-center py-8">No dividends recorded.</p>
 					{:else}
@@ -181,6 +206,59 @@
 											<td class="py-2 px-3">{new Date(d.exDate).toLocaleDateString()}</td>
 											<td class="py-2 px-3">{new Date(d.payDate).toLocaleDateString()}</td>
 											<td class="py-2 px-3 text-text-muted text-xs">{d.notes || ''}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				{:else if activeTab === 'cash'}
+					{#if portfolioStore.cashTransactions.length === 0}
+						<p class="text-text-muted text-center py-8">No cash deposits or withdrawals recorded.</p>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-border text-text-muted text-left">
+										<th class="py-2 px-3 font-medium">Type</th>
+										<th class="py-2 px-3 font-medium text-right">Amount</th>
+										<th class="py-2 px-3 font-medium">Currency</th>
+										<th class="py-2 px-3 font-medium">Date</th>
+										<th class="py-2 px-3 font-medium">Notes</th>
+										<th class="py-2 px-3 font-medium"></th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each portfolioStore.cashTransactions as ct}
+										<tr class="border-b border-border hover:bg-surface-alt">
+											<td class="py-2 px-3">
+												<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {
+													ct.type === 'Deposit'
+														? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+														: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+												}">
+													{ct.type === 'Deposit' ? '↓ Deposit' : '↑ Withdrawal'}
+												</span>
+											</td>
+											<td class="py-2 px-3 text-right font-medium {ct.type === 'Deposit' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+												{ct.type === 'Deposit' ? '+' : '−'}{formatCurrency(ct.amount, ct.currency)}
+											</td>
+											<td class="py-2 px-3 text-text-muted">{ct.currency}</td>
+											<td class="py-2 px-3">{new Date(ct.transactionDate).toLocaleDateString()}</td>
+											<td class="py-2 px-3 text-text-muted text-xs">{ct.notes || ''}</td>
+											<td class="py-2 px-3">
+												<button
+													onclick={async () => {
+														if (confirm('Delete this cash transaction?')) {
+															await (await import('$lib/api/client')).cash.delete(ct.id);
+															await portfolioStore.loadAll();
+														}
+													}}
+													class="text-text-muted hover:text-danger text-xs"
+												>
+													✕
+												</button>
+											</td>
 										</tr>
 									{/each}
 								</tbody>

@@ -9,6 +9,7 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
     {
         var transactions = portfolio.Transactions.OrderBy(t => t.TransactionDate).ToList();
         var dividends = portfolio.Dividends.ToList();
+        var cashTransactions = portfolio.CashTransactions.OrderBy(c => c.TransactionDate).ToList();
 
         // Group transactions by symbol to compute positions
         var symbolGroups = transactions.GroupBy(t => t.Symbol);
@@ -32,7 +33,10 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
                 positions.Add(position);
         }
 
-        var totalValueDisplay = positions.Sum(p => p.CurrentValueDisplay);
+        // Compute cash balance in display currency
+        var cashBalance = await CalculateCashBalanceAsync(cashTransactions, transactions, dividends, positions, displayCurrency);
+
+        var totalValueDisplay = positions.Sum(p => p.CurrentValueDisplay) + cashBalance;
         var totalCostDisplay = positions.Sum(p => p.TotalInvestedDisplay);
         var totalPnLDisplay = positions.Sum(p => p.PnLDisplay);
         var totalPnLPercent = totalCostDisplay != 0 ? (totalPnLDisplay / totalCostDisplay) * 100 : 0;
@@ -48,8 +52,55 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             totalPnLDisplay,
             totalPnLPercent,
             totalDividendsDisplay,
+            cashBalance,
             positions
         );
+    }
+
+    /// <summary>
+    /// Computes cash balance in display currency using Option A (implicit):
+    ///   + deposits  - withdrawals  - buys  + sells  + dividends
+    /// Each amount is FX-converted to displayCurrency at the historical rate on the transaction date.
+    /// </summary>
+    private async Task<decimal> CalculateCashBalanceAsync(
+        List<CashTransaction> cashTransactions,
+        List<Transaction> transactions,
+        List<Dividend> dividends,
+        List<PositionDto> positions,
+        string displayCurrency)
+    {
+        decimal cash = 0;
+
+        // Deposits and withdrawals
+        foreach (var ct in cashTransactions)
+        {
+            var rate = await fx.GetHistoricalRateAsync(ct.Currency, displayCurrency, ct.TransactionDate);
+            var amount = ct.Amount * rate;
+            cash += ct.Type == CashTransactionType.Deposit ? amount : -amount;
+        }
+
+        // Buys deduct cash, sells add cash (converted from native currency)
+        foreach (var txn in transactions)
+        {
+            var rate = await fx.GetHistoricalRateAsync(txn.NativeCurrency, displayCurrency, txn.TransactionDate);
+            var amount = txn.Quantity * txn.PricePerUnit * rate;
+            cash += txn.Type == TransactionType.Buy ? -amount : amount;
+        }
+
+        // Dividends add cash (amountPerShare × quantity held at ex-date, in native currency)
+        foreach (var div in dividends)
+        {
+            // Find quantity held at ex-date for this symbol
+            var qtyAtExDate = transactions
+                .Where(t => t.Symbol == div.Symbol && t.TransactionDate.Date <= div.ExDate.Date)
+                .Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity);
+            if (qtyAtExDate <= 0) continue;
+
+            var rate = await fx.GetHistoricalRateAsync(div.NativeCurrency, displayCurrency, div.PayDate);
+            cash += div.AmountPerShare * qtyAtExDate * rate;
+        }
+
+        return cash;
     }
 
     private async Task<PositionDto?> CalculatePositionAsync(
@@ -131,7 +182,10 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
         Portfolio portfolio, string displayCurrency, string range = "1y")
     {
         var transactions = portfolio.Transactions.OrderBy(t => t.TransactionDate).ToList();
-        if (transactions.Count == 0) return [];
+        var cashTransactions = portfolio.CashTransactions.OrderBy(c => c.TransactionDate).ToList();
+        var dividends = portfolio.Dividends.OrderBy(d => d.PayDate).ToList();
+
+        if (transactions.Count == 0 && cashTransactions.Count == 0) return [];
 
         // Determine date range
         var startDate = range switch
@@ -141,13 +195,14 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             "3m" => DateTime.UtcNow.AddMonths(-3),
             "6m" => DateTime.UtcNow.AddMonths(-6),
             "1y" => DateTime.UtcNow.AddYears(-1),
-            "all" => transactions.First().TransactionDate,
+            "all" => GetEarliestDate(transactions, cashTransactions),
             _ => DateTime.UtcNow.AddYears(-1)
         };
 
-        // Earliest is the first transaction
-        if (startDate < transactions.First().TransactionDate)
-            startDate = transactions.First().TransactionDate;
+        // Earliest is the first activity
+        var earliest = GetEarliestDate(transactions, cashTransactions);
+        if (startDate < earliest)
+            startDate = earliest;
 
         var symbols = transactions.Select(t => t.Symbol).Distinct().ToList();
 
@@ -185,6 +240,33 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             fxRates[curr] = await fx.GetRateRangeAsync(curr, displayCurrency, startDate, endDate);
         }
 
+        // Also get FX rates for cash transaction currencies
+        var cashCurrencies = cashTransactions.Select(c => c.Currency).Distinct()
+            .Where(c => !c.Equals(displayCurrency, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        foreach (var curr in cashCurrencies.Where(c => !fxRates.ContainsKey(c)))
+        {
+            fxRates[curr] = await fx.GetRateRangeAsync(curr, displayCurrency, startDate, endDate);
+        }
+        // And for dividend currencies
+        var divCurrencies = dividends.Select(d => d.NativeCurrency).Distinct()
+            .Where(c => !c.Equals(displayCurrency, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        foreach (var curr in divCurrencies.Where(c => !fxRates.ContainsKey(c)))
+        {
+            fxRates[curr] = await fx.GetRateRangeAsync(curr, displayCurrency, startDate, endDate);
+        }
+
+        // Helper to find FX rate for a currency on a given date
+        decimal GetFxRateForDate(string currency, string dateStr)
+        {
+            if (currency.Equals(displayCurrency, StringComparison.OrdinalIgnoreCase)) return 1m;
+            if (!fxRates.TryGetValue(currency, out var rates)) return 1m;
+            var closestDate = rates.Keys.Where(d => string.Compare(d, dateStr) <= 0)
+                .OrderByDescending(d => d).FirstOrDefault();
+            return closestDate != null ? rates[closestDate] : 1m;
+        }
+
         // For each day in range, compute portfolio value
         for (var date = startDate.Date; date <= endDate; date = date.AddDays(1))
         {
@@ -216,27 +298,50 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
                 }
 
                 var valueNative = holding.Quantity * price;
-
-                // Convert to display currency
-                decimal fxRate = 1m;
-                if (!holding.NativeCurrency.Equals(displayCurrency, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (fxRates.TryGetValue(holding.NativeCurrency, out var rates))
-                    {
-                        // Find closest date
-                        var closestDate = rates.Keys.Where(d => string.Compare(d, dateStr) <= 0).OrderByDescending(d => d).FirstOrDefault();
-                        if (closestDate != null) fxRate = rates[closestDate];
-                    }
-                }
-
-                totalValue += valueNative * fxRate;
+                totalValue += valueNative * GetFxRateForDate(holding.NativeCurrency, dateStr);
             }
 
-            if (totalValue > 0)
+            // Compute cash balance as of this date (deposits - withdrawals - buys + sells + dividends)
+            decimal cashAtDate = 0;
+
+            foreach (var ct in cashTransactions.Where(c => c.TransactionDate.Date <= date))
+            {
+                var amount = ct.Amount * GetFxRateForDate(ct.Currency, ct.TransactionDate.ToString("yyyy-MM-dd"));
+                cashAtDate += ct.Type == CashTransactionType.Deposit ? amount : -amount;
+            }
+
+            foreach (var txn in transactions.Where(t => t.TransactionDate.Date <= date))
+            {
+                var amount = txn.Quantity * txn.PricePerUnit * GetFxRateForDate(txn.NativeCurrency, txn.TransactionDate.ToString("yyyy-MM-dd"));
+                cashAtDate += txn.Type == TransactionType.Buy ? -amount : amount;
+            }
+
+            foreach (var div in dividends.Where(d => d.PayDate.Date <= date))
+            {
+                var qtyAtExDate = transactions
+                    .Where(t => t.Symbol == div.Symbol && t.TransactionDate.Date <= div.ExDate.Date)
+                    .Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity);
+                if (qtyAtExDate > 0)
+                {
+                    cashAtDate += div.AmountPerShare * qtyAtExDate * GetFxRateForDate(div.NativeCurrency, div.PayDate.ToString("yyyy-MM-dd"));
+                }
+            }
+
+            totalValue += cashAtDate;
+
+            if (totalValue != 0)
                 points.Add(new ChartDataPoint(date, totalValue));
         }
 
         return points;
+    }
+
+    private static DateTime GetEarliestDate(List<Transaction> transactions, List<CashTransaction> cashTransactions)
+    {
+        var dates = new List<DateTime>();
+        if (transactions.Count > 0) dates.Add(transactions.First().TransactionDate);
+        if (cashTransactions.Count > 0) dates.Add(cashTransactions.First().TransactionDate);
+        return dates.Count > 0 ? dates.Min() : DateTime.UtcNow;
     }
 }
 

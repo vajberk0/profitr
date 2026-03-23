@@ -77,7 +77,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ProfitrDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await DatabaseMigrator.MigrateAsync(db);
 }
 
 app.UseCors("Frontend");
@@ -94,6 +94,7 @@ app.MapPortfolioEndpoints();
 app.MapTransactionEndpoints();
 app.MapImportEndpoints();
 app.MapDividendEndpoints();
+app.MapCashEndpoints();
 app.MapMarketEndpoints();
 app.MapFxEndpoints();
 

@@ -98,6 +98,7 @@ public static class PortfolioEndpoints
             var portfolio = await db.Portfolios
                 .Include(p => p.Transactions)
                 .Include(p => p.Dividends)
+                .Include(p => p.CashTransactions)
                 .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
 
             if (portfolio == null) return Results.NotFound();
@@ -112,6 +113,8 @@ public static class PortfolioEndpoints
             var user = await db.Users.FirstAsync(u => u.Id == userId);
             var portfolio = await db.Portfolios
                 .Include(p => p.Transactions)
+                .Include(p => p.CashTransactions)
+                .Include(p => p.Dividends)
                 .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
 
             if (portfolio == null) return Results.NotFound();

@@ -75,7 +75,17 @@ public class PnLServiceTests
                     TransactionDate = new DateTime(2024, 6, 15)
                 }
             ],
-            Dividends = []
+            Dividends = [],
+            CashTransactions =
+            [
+                new CashTransaction
+                {
+                    Type = CashTransactionType.Deposit,
+                    Amount = 1500m,
+                    Currency = "USD",
+                    TransactionDate = new DateTime(2024, 6, 14)
+                }
+            ]
         };
 
         // Act
@@ -93,7 +103,9 @@ public class PnLServiceTests
         Assert.Equal(450m, pos.PnL);
         Assert.Equal(30m, pos.PnLPercent);
 
+        // TotalValue = securities (1950) + cash (1500 deposit - 1500 buy = 0) = 1950
         Assert.Equal(1950m, summary.TotalValue);
+        Assert.Equal(0m, summary.CashBalance);
         Assert.Equal(1500m, summary.TotalCostBasis);
         Assert.Equal(450m, summary.TotalPnL);
     }
@@ -251,14 +263,25 @@ public class PnLServiceTests
                     TransactionDate = new DateTime(2024, 1, 1)
                 }
             ],
-            Dividends = []
+            Dividends = [],
+            CashTransactions =
+            [
+                new CashTransaction
+                {
+                    Type = CashTransactionType.Deposit,
+                    Amount = 3250m,
+                    Currency = "USD",
+                    TransactionDate = new DateTime(2023, 12, 31)
+                }
+            ]
         };
 
         var summary = await service.CalculatePortfolioSummaryAsync(portfolio, "USD");
 
         Assert.Equal(2, summary.Positions.Count);
-        // AAPL: 10*200 = 2000, MSFT: 5*400 = 2000 → total 4000
+        // AAPL: 10*200 = 2000, MSFT: 5*400 = 2000, cash: 3250-3250 = 0 → total 4000
         Assert.Equal(4000m, summary.TotalValue);
+        Assert.Equal(0m, summary.CashBalance);
         // AAPL cost: 1500, MSFT cost: 1750 → total 3250
         Assert.Equal(3250m, summary.TotalCostBasis);
         // PnL: 4000 - 3250 = 750

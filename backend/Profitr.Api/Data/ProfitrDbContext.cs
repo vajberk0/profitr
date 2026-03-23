@@ -9,6 +9,7 @@ public class ProfitrDbContext(DbContextOptions<ProfitrDbContext> options) : DbCo
     public DbSet<Portfolio> Portfolios => Set<Portfolio>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Dividend> Dividends => Set<Dividend>();
+    public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +49,16 @@ public class ProfitrDbContext(DbContextOptions<ProfitrDbContext> options) : DbCo
             e.Property(d => d.AmountPerShare).HasColumnType("decimal(18,8)");
             e.Property(d => d.NativeCurrency).HasMaxLength(3);
             e.Property(d => d.Symbol).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<CashTransaction>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasOne(c => c.Portfolio).WithMany(p => p.CashTransactions).HasForeignKey(c => c.PortfolioId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => c.PortfolioId);
+            e.Property(c => c.Amount).HasColumnType("decimal(18,8)");
+            e.Property(c => c.Type).HasConversion<string>().HasMaxLength(10);
+            e.Property(c => c.Currency).HasMaxLength(3);
         });
     }
 }

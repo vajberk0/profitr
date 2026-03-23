@@ -21,6 +21,7 @@ public record PortfolioSummaryDto(
     decimal TotalPnL,
     decimal TotalPnLPercent,
     decimal TotalDividends,
+    decimal CashBalance,
     List<PositionDto> Positions
 );
 

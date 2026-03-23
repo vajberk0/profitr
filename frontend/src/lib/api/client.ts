@@ -88,6 +88,18 @@ export const importApi = {
 		})
 };
 
+// Cash
+export const cash = {
+	list: (portfolioId: string) =>
+		request<CashTransaction[]>(`/api/portfolios/${portfolioId}/cash`),
+	create: (portfolioId: string, data: CreateCashTransactionRequest) =>
+		request<CashTransaction>(`/api/portfolios/${portfolioId}/cash`, {
+			method: 'POST',
+			body: JSON.stringify(data)
+		}),
+	delete: (id: string) => request<void>(`/api/cash/${id}`, { method: 'DELETE' })
+};
+
 // Dividends
 export const dividends = {
 	list: (portfolioId: string) =>
@@ -165,6 +177,7 @@ export interface PortfolioSummary {
 	totalPnL: number;
 	totalPnLPercent: number;
 	totalDividends: number;
+	cashBalance: number;
 	positions: Position[];
 }
 
@@ -256,6 +269,24 @@ export interface HistoryPriceResult {
 	date: string;
 	closePrice: number;
 	currency: string;
+}
+
+export interface CashTransaction {
+	id: string;
+	type: string;
+	amount: number;
+	currency: string;
+	transactionDate: string;
+	notes: string | null;
+	createdAt: string;
+}
+
+export interface CreateCashTransactionRequest {
+	type: string;
+	amount: number;
+	currency: string;
+	transactionDate: string;
+	notes?: string;
 }
 
 export interface CurrencyInfo {

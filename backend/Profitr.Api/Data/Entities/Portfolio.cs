@@ -11,4 +11,5 @@ public class Portfolio
     public User User { get; set; } = null!;
     public List<Transaction> Transactions { get; set; } = [];
     public List<Dividend> Dividends { get; set; } = [];
+    public List<CashTransaction> CashTransactions { get; set; } = [];
 }
