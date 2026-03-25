@@ -124,7 +124,9 @@ public class FxService(IFxRateProvider provider, ProfitrDbContext db, IMemoryCac
                 r => r.RateDate.ToString("yyyy-MM-dd"),
                 r => r.Rate);
 
-        // Determine if we need to fetch from API
+        // Determine if we need to fetch from API by checking for gaps
+        // at the start and end of the requested range.
+        // 3-day buffer accounts for weekends/holidays where no rates are published.
         DateTime? fetchFrom = null;
         if (dbRates.Count == 0)
         {
@@ -132,15 +134,23 @@ public class FxService(IFxRateProvider provider, ProfitrDbContext db, IMemoryCac
         }
         else
         {
-            var latestCachedDate = dbRates.Keys
+            var cachedDates = dbRates.Keys
                 .Select(k => DateTime.ParseExact(k, "yyyy-MM-dd", CultureInfo.InvariantCulture))
-                .Max();
-            var gap = (endDate.Date - latestCachedDate).TotalDays;
+                .ToList();
+            var earliest = cachedDates.Min();
+            var latest = cachedDates.Max();
 
-            // If range ends near today, refresh if >1 day stale; for historical ranges, 3-day buffer for weekends
+            bool hasHeadGap = (earliest - startDate.Date).TotalDays > 3;
             bool endsNearToday = endDate.Date >= DateTime.UtcNow.Date.AddDays(-1);
-            if (endsNearToday ? gap > 1 : gap > 3)
-                fetchFrom = latestCachedDate.AddDays(1);
+            bool hasTailGap = (endDate.Date - latest).TotalDays > (endsNearToday ? 1 : 3);
+
+            if (hasHeadGap)
+                // Missing data at the start — likely sparse individual lookups,
+                // so fetch the full range (duplicates are skipped on insert)
+                fetchFrom = startDate;
+            else if (hasTailGap)
+                // Head is covered, just extend the tail
+                fetchFrom = latest.AddDays(1);
         }
 
         if (fetchFrom != null)
