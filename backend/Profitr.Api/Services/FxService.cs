@@ -1,143 +1,191 @@
-using System.Text.Json;
+using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Profitr.Api.Data;
+using Profitr.Api.Data.Entities;
 using Profitr.Api.Models;
 
 namespace Profitr.Api.Services;
 
-public class FxService(HttpClient httpClient, IMemoryCache cache, ILogger<FxService> logger)
+/// <summary>
+/// FX rate service with persistent SQLite caching.
+/// Memory cache → SQLite → IFxRateProvider (API).
+/// Historical rates are cached permanently; latest rates refresh hourly.
+/// </summary>
+public class FxService(IFxRateProvider provider, ProfitrDbContext db, IMemoryCache cache, ILogger<FxService> logger)
 {
-    private const string BaseUrl = "https://api.frankfurter.app";
-    private const int MaxRetries = 3;
-    private static readonly TimeSpan[] RetryDelays = [TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)];
-
-    private async Task<string> GetStringWithRetryAsync(string url)
-    {
-        for (int attempt = 0; ; attempt++)
-        {
-            try
-            {
-                return await httpClient.GetStringAsync(url);
-            }
-            catch (HttpRequestException ex) when (attempt < MaxRetries && IsTransient(ex))
-            {
-                logger.LogWarning("Frankfurter request failed (attempt {Attempt}/{Max}, status {Status}), retrying in {Delay}ms: {Url}",
-                    attempt + 1, MaxRetries, ex.StatusCode, RetryDelays[attempt].TotalMilliseconds, url);
-                await Task.Delay(RetryDelays[attempt]);
-            }
-        }
-    }
-
-    private static bool IsTransient(HttpRequestException ex)
-    {
-        // 5xx = server errors, 429 = rate limited, null = network-level failure
-        return ex.StatusCode is null
-            || (int)ex.StatusCode >= 500
-            || ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
-    }
-
-    private static readonly Dictionary<string, string> CurrencyNames = new()
-    {
-        ["AUD"] = "Australian Dollar", ["BRL"] = "Brazilian Real", ["CAD"] = "Canadian Dollar",
-        ["CHF"] = "Swiss Franc", ["CNY"] = "Chinese Renminbi Yuan", ["CZK"] = "Czech Koruna",
-        ["DKK"] = "Danish Krone", ["EUR"] = "Euro", ["GBP"] = "British Pound",
-        ["HKD"] = "Hong Kong Dollar", ["HUF"] = "Hungarian Forint", ["IDR"] = "Indonesian Rupiah",
-        ["ILS"] = "Israeli New Sheqel", ["INR"] = "Indian Rupee", ["ISK"] = "Icelandic Króna",
-        ["JPY"] = "Japanese Yen", ["KRW"] = "South Korean Won", ["MXN"] = "Mexican Peso",
-        ["MYR"] = "Malaysian Ringgit", ["NOK"] = "Norwegian Krone", ["NZD"] = "New Zealand Dollar",
-        ["PHP"] = "Philippine Peso", ["PLN"] = "Polish Złoty", ["RON"] = "Romanian Leu",
-        ["SEK"] = "Swedish Krona", ["SGD"] = "Singapore Dollar", ["THB"] = "Thai Baht",
-        ["TRY"] = "Turkish Lira", ["USD"] = "United States Dollar", ["ZAR"] = "South African Rand"
-    };
-
-    public List<CurrencyInfo> GetSupportedCurrencies()
-    {
-        return CurrencyNames.Select(kv => new CurrencyInfo(kv.Key, kv.Value)).OrderBy(c => c.Code).ToList();
-    }
+    public List<CurrencyInfo> GetSupportedCurrencies() => provider.GetSupportedCurrencies();
 
     public async Task<decimal> GetLatestRateAsync(string from, string to)
     {
         if (from.Equals(to, StringComparison.OrdinalIgnoreCase)) return 1m;
+        from = from.ToUpper(); to = to.ToUpper();
 
-        var cacheKey = $"fx:latest:{from.ToUpper()}:{to.ToUpper()}";
-        if (cache.TryGetValue(cacheKey, out decimal cached))
-            return cached;
+        var cacheKey = $"fx:latest:{from}:{to}";
+        if (cache.TryGetValue(cacheKey, out decimal memCached))
+            return memCached;
 
-        try
+        // Try the API first (latest endpoint gives most current rate)
+        var rate = await provider.GetLatestRateAsync(from, to);
+        if (rate.HasValue)
         {
-            var url = $"{BaseUrl}/latest?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
-            var response = await GetStringWithRetryAsync(url);
-            var doc = JsonDocument.Parse(response);
-            var rate = doc.RootElement.GetProperty("rates").GetProperty(to.ToUpper()).GetDecimal();
+            cache.Set(cacheKey, rate.Value, TimeSpan.FromHours(1));
+            // Also persist with today's date for fallback
+            await UpsertRateAsync(from, to, DateTime.UtcNow.Date, rate.Value);
+            return rate.Value;
+        }
 
-            cache.Set(cacheKey, rate, TimeSpan.FromHours(1));
-            return rate;
-        }
-        catch (Exception ex)
+        // API failed — fall back to most recent cached rate from SQLite
+        var fallback = await db.CachedFxRates
+            .Where(r => r.BaseCurrency == from && r.QuoteCurrency == to)
+            .OrderByDescending(r => r.RateDate)
+            .Select(r => (decimal?)r.Rate)
+            .FirstOrDefaultAsync();
+
+        if (fallback.HasValue)
         {
-            logger.LogError(ex, "Frankfurter latest rate failed for {From}→{To}", from, to);
-            return 1m; // fallback: no conversion
+            logger.LogWarning("Using cached fallback rate for {From}→{To}: {Rate}", from, to, fallback.Value);
+            cache.Set(cacheKey, fallback.Value, TimeSpan.FromMinutes(10));
+            return fallback.Value;
         }
+
+        logger.LogError("No rate available for {From}→{To}, returning 1", from, to);
+        return 1m;
     }
 
     public async Task<decimal> GetHistoricalRateAsync(string from, string to, DateTime date)
     {
         if (from.Equals(to, StringComparison.OrdinalIgnoreCase)) return 1m;
+        from = from.ToUpper(); to = to.ToUpper();
 
         var dateStr = date.ToString("yyyy-MM-dd");
-        var cacheKey = $"fx:hist:{from.ToUpper()}:{to.ToUpper()}:{dateStr}";
-        if (cache.TryGetValue(cacheKey, out decimal cached))
-            return cached;
+        var cacheKey = $"fx:hist:{from}:{to}:{dateStr}";
+        if (cache.TryGetValue(cacheKey, out decimal memCached))
+            return memCached;
 
-        try
-        {
-            var url = $"{BaseUrl}/{dateStr}?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
-            var response = await GetStringWithRetryAsync(url);
-            var doc = JsonDocument.Parse(response);
-            var rate = doc.RootElement.GetProperty("rates").GetProperty(to.ToUpper()).GetDecimal();
+        // Check SQLite
+        var dbDate = date.Date;
+        var dbRate = await db.CachedFxRates
+            .Where(r => r.BaseCurrency == from && r.QuoteCurrency == to && r.RateDate == dbDate)
+            .Select(r => (decimal?)r.Rate)
+            .FirstOrDefaultAsync();
 
-            cache.Set(cacheKey, rate, TimeSpan.FromHours(24));
-            return rate;
-        }
-        catch (Exception ex)
+        if (dbRate.HasValue)
         {
-            logger.LogError(ex, "Frankfurter historical rate failed for {From}→{To} on {Date}", from, to, dateStr);
-            return 1m;
+            cache.Set(cacheKey, dbRate.Value, TimeSpan.FromHours(24));
+            return dbRate.Value;
         }
+
+        // Fetch from provider
+        var rate = await provider.GetHistoricalRateAsync(from, to, date);
+        if (rate.HasValue)
+        {
+            cache.Set(cacheKey, rate.Value, TimeSpan.FromHours(24));
+            await UpsertRateAsync(from, to, dbDate, rate.Value);
+            return rate.Value;
+        }
+
+        // API failed — try nearest cached date as fallback
+        var nearest = await db.CachedFxRates
+            .Where(r => r.BaseCurrency == from && r.QuoteCurrency == to && r.RateDate <= dbDate)
+            .OrderByDescending(r => r.RateDate)
+            .Select(r => (decimal?)r.Rate)
+            .FirstOrDefaultAsync();
+
+        if (nearest.HasValue)
+        {
+            logger.LogWarning("Using nearest cached rate for {From}→{To} on {Date}: {Rate}", from, to, dateStr, nearest.Value);
+            return nearest.Value;
+        }
+
+        logger.LogError("No rate available for {From}→{To} on {Date}, returning 1", from, to, dateStr);
+        return 1m;
     }
 
-    /// <summary>
-    /// Gets a range of daily rates, useful for building P&L charts
-    /// </summary>
     public async Task<Dictionary<string, decimal>> GetRateRangeAsync(string from, string to, DateTime startDate, DateTime endDate)
     {
         if (from.Equals(to, StringComparison.OrdinalIgnoreCase))
             return new Dictionary<string, decimal>();
 
-        var start = startDate.ToString("yyyy-MM-dd");
-        var end = endDate.ToString("yyyy-MM-dd");
-        var cacheKey = $"fx:range:{from.ToUpper()}:{to.ToUpper()}:{start}:{end}";
-        if (cache.TryGetValue(cacheKey, out Dictionary<string, decimal>? cached) && cached != null)
-            return cached;
+        from = from.ToUpper(); to = to.ToUpper();
 
-        try
+        // Short-lived memory cache for identical repeat calls (e.g., page refresh)
+        var cacheKey = $"fx:range:{from}:{to}:{startDate:yyyy-MM-dd}:{endDate:yyyy-MM-dd}";
+        if (cache.TryGetValue(cacheKey, out Dictionary<string, decimal>? memCached) && memCached != null)
+            return memCached;
+
+        // Load all cached rates from SQLite for this pair + range
+        var startDb = startDate.Date;
+        var endDb = endDate.Date;
+        var dbRates = await db.CachedFxRates
+            .Where(r => r.BaseCurrency == from && r.QuoteCurrency == to
+                     && r.RateDate >= startDb && r.RateDate <= endDb)
+            .ToDictionaryAsync(
+                r => r.RateDate.ToString("yyyy-MM-dd"),
+                r => r.Rate);
+
+        // Determine if we need to fetch from API
+        DateTime? fetchFrom = null;
+        if (dbRates.Count == 0)
         {
-            var url = $"{BaseUrl}/{start}..{end}?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
-            var response = await GetStringWithRetryAsync(url);
-            var doc = JsonDocument.Parse(response);
+            fetchFrom = startDate;
+        }
+        else
+        {
+            var latestCachedDate = dbRates.Keys
+                .Select(k => DateTime.ParseExact(k, "yyyy-MM-dd", CultureInfo.InvariantCulture))
+                .Max();
+            var gap = (endDate.Date - latestCachedDate).TotalDays;
 
-            var rates = new Dictionary<string, decimal>();
-            foreach (var prop in doc.RootElement.GetProperty("rates").EnumerateObject())
+            // If range ends near today, refresh if >1 day stale; for historical ranges, 3-day buffer for weekends
+            bool endsNearToday = endDate.Date >= DateTime.UtcNow.Date.AddDays(-1);
+            if (endsNearToday ? gap > 1 : gap > 3)
+                fetchFrom = latestCachedDate.AddDays(1);
+        }
+
+        if (fetchFrom != null)
+        {
+            var fetched = await provider.GetRateRangeAsync(from, to, fetchFrom.Value, endDate);
+            if (fetched != null)
             {
-                rates[prop.Name] = prop.Value.GetProperty(to.ToUpper()).GetDecimal();
+                var newRates = new List<CachedFxRate>();
+                foreach (var (dateStr, rate) in fetched)
+                {
+                    if (!dbRates.ContainsKey(dateStr))
+                    {
+                        newRates.Add(new CachedFxRate
+                        {
+                            BaseCurrency = from,
+                            QuoteCurrency = to,
+                            RateDate = DateTime.ParseExact(dateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                            Rate = rate
+                        });
+                    }
+                    dbRates[dateStr] = rate;
+                }
+                if (newRates.Count > 0)
+                {
+                    db.CachedFxRates.AddRange(newRates);
+                    await db.SaveChangesAsync();
+                    logger.LogInformation("Cached {Count} FX rates for {From}→{To}", newRates.Count, from, to);
+                }
             }
+        }
 
-            cache.Set(cacheKey, rates, TimeSpan.FromHours(24));
-            return rates;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Frankfurter rate range failed for {From}→{To} from {Start} to {End}", from, to, start, end);
-            return new Dictionary<string, decimal>();
-        }
+        cache.Set(cacheKey, dbRates, TimeSpan.FromMinutes(5));
+        return dbRates;
+    }
+
+    private async Task UpsertRateAsync(string from, string to, DateTime date, decimal rate)
+    {
+        var existing = await db.CachedFxRates
+            .FirstOrDefaultAsync(r => r.BaseCurrency == from && r.QuoteCurrency == to && r.RateDate == date);
+
+        if (existing != null)
+            existing.Rate = rate;
+        else
+            db.CachedFxRates.Add(new CachedFxRate { BaseCurrency = from, QuoteCurrency = to, RateDate = date, Rate = rate });
+
+        await db.SaveChangesAsync();
     }
 }

@@ -19,7 +19,8 @@ builder.Services.AddHttpClient<YahooFinanceService>(client =>
 {
     client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 });
-builder.Services.AddHttpClient<FxService>();
+builder.Services.AddHttpClient<IFxRateProvider, FrankfurterFxProvider>();
+builder.Services.AddScoped<FxService>();
 builder.Services.AddScoped<PnLService>();
 
 // Authentication

@@ -10,6 +10,7 @@ public class ProfitrDbContext(DbContextOptions<ProfitrDbContext> options) : DbCo
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Dividend> Dividends => Set<Dividend>();
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
+    public DbSet<CachedFxRate> CachedFxRates => Set<CachedFxRate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +50,14 @@ public class ProfitrDbContext(DbContextOptions<ProfitrDbContext> options) : DbCo
             e.Property(d => d.AmountPerShare).HasColumnType("decimal(18,8)");
             e.Property(d => d.NativeCurrency).HasMaxLength(3);
             e.Property(d => d.Symbol).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<CachedFxRate>(e =>
+        {
+            e.HasKey(r => new { r.BaseCurrency, r.QuoteCurrency, r.RateDate });
+            e.Property(r => r.BaseCurrency).HasMaxLength(3);
+            e.Property(r => r.QuoteCurrency).HasMaxLength(3);
+            e.Property(r => r.Rate).HasColumnType("decimal(18,8)");
         });
 
         modelBuilder.Entity<CashTransaction>(e =>

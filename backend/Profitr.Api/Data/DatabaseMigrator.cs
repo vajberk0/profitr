@@ -35,6 +35,16 @@ public static class DatabaseMigrator
             );
             CREATE INDEX IF NOT EXISTS IX_CashTransactions_PortfolioId ON CashTransactions(PortfolioId);
         """),
+
+        ("002_AddCachedFxRates", """
+            CREATE TABLE IF NOT EXISTS CachedFxRates (
+                BaseCurrency TEXT NOT NULL,
+                QuoteCurrency TEXT NOT NULL,
+                RateDate TEXT NOT NULL,
+                Rate TEXT NOT NULL DEFAULT '0',
+                PRIMARY KEY (BaseCurrency, QuoteCurrency, RateDate)
+            );
+        """),
     ];
 
     public static async Task MigrateAsync(ProfitrDbContext db)

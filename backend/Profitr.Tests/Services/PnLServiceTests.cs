@@ -1,14 +1,36 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Profitr.Api.Data;
 using Profitr.Api.Data.Entities;
 using Profitr.Api.Models;
 using Profitr.Api.Services;
 
 namespace Profitr.Tests.Services;
 
-public class PnLServiceTests
+public class PnLServiceTests : IDisposable
 {
+    private readonly SqliteConnection _conn;
+    private readonly ProfitrDbContext _db;
+
+    public PnLServiceTests()
+    {
+        _conn = new SqliteConnection("Data Source=:memory:");
+        _conn.Open();
+        var opts = new DbContextOptionsBuilder<ProfitrDbContext>()
+            .UseSqlite(_conn).Options;
+        _db = new ProfitrDbContext(opts);
+        _db.Database.EnsureCreated();
+    }
+
+    public void Dispose()
+    {
+        _db.Dispose();
+        _conn.Dispose();
+    }
+
     private PnLService CreateService(
         Dictionary<string, QuoteResult>? quotes = null,
         Dictionary<string, decimal>? fxRates = null)
@@ -18,7 +40,6 @@ public class PnLServiceTests
         // Mock Yahoo Finance
         var yahooLogger = new Mock<ILogger<YahooFinanceService>>();
         var yahooHttp = new HttpClient(new MockHttpHandler());
-        var yahoo = new Mock<YahooFinanceService>(yahooHttp, cache, yahooLogger.Object) { CallBase = false };
 
         // Pre-fill quote cache so it won't make HTTP calls
         quotes ??= new();
@@ -29,10 +50,14 @@ public class PnLServiceTests
 
         var realYahoo = new YahooFinanceService(yahooHttp, cache, yahooLogger.Object);
 
-        // Mock FX service
+        // FX service with null-returning provider (rates come from memory cache)
+        var mockProvider = new Mock<IFxRateProvider>();
+        mockProvider.Setup(p => p.GetLatestRateAsync(It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync((decimal?)null);
+        mockProvider.Setup(p => p.GetHistoricalRateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>())).ReturnsAsync((decimal?)null);
+        mockProvider.Setup(p => p.GetSupportedCurrencies()).Returns([]);
+
         var fxLogger = new Mock<ILogger<FxService>>();
-        var fxHttp = new HttpClient(new MockHttpHandler());
-        var realFx = new FxService(fxHttp, cache, fxLogger.Object);
+        var realFx = new FxService(mockProvider.Object, _db, cache, fxLogger.Object);
 
         // Pre-fill FX cache
         fxRates ??= new();
