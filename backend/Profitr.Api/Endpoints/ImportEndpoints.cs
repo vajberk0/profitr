@@ -24,9 +24,10 @@ public static class ImportEndpoints
                 var content = await reader.ReadToEndAsync();
 
                 var parser = new IbkrCsvParser();
-                var parsedRows = parser.Parse(content);
+                var parseResult = parser.ParseAll(content);
+                var parsedRows = parseResult.Transactions;
 
-                if (parsedRows.Count == 0)
+                if (parsedRows.Count == 0 && parseResult.CashTransactions.Count == 0)
                     return Results.BadRequest("No valid transactions found in the CSV file. Make sure it's an IBKR Transaction History export.");
 
                 // Look up unique symbols: quote (to check if direct symbol works) + search (for alternatives)
@@ -92,10 +93,26 @@ public static class ImportEndpoints
                     );
                 }).ToList();
 
+                var cashPreviewRows = parseResult.CashTransactions.Select((c, i) =>
+                    new ImportCashPreviewRow(
+                        RowIndex: i,
+                        Date: c.Date,
+                        Description: c.Description,
+                        CashType: c.CashType,
+                        Amount: c.Amount,
+                        Currency: c.Currency,
+                        IsValid: true,
+                        Error: null
+                    )
+                ).ToList();
+
+                var totalRows = previewRows.Count + cashPreviewRows.Count;
+
                 return Results.Ok(new ImportPreviewResponse(
                     Rows: previewRows,
-                    TotalRows: previewRows.Count,
-                    ValidRows: previewRows.Count,
+                    CashRows: cashPreviewRows,
+                    TotalRows: totalRows,
+                    ValidRows: totalRows,
                     SkippedRows: 0,
                     SymbolMappings: symbolMappings
                 ));
@@ -110,6 +127,7 @@ public static class ImportEndpoints
                 if (portfolio == null) return Results.NotFound();
 
                 var transactions = new List<Transaction>();
+                var cashTransactions = new List<CashTransaction>();
                 var errors = new List<string>();
 
                 foreach (var row in req.Rows)
@@ -138,6 +156,38 @@ public static class ImportEndpoints
                     }
                 }
 
+                // Import cash deposits/withdrawals
+                if (req.CashRows != null)
+                {
+                    foreach (var cashRow in req.CashRows)
+                    {
+                        try
+                        {
+                            if (!Enum.TryParse<CashTransactionType>(cashRow.CashType, true, out var cashType))
+                            {
+                                errors.Add($"Cash {cashRow.CashType} on {cashRow.Date}: Invalid type.");
+                                continue;
+                            }
+
+                            var cashTxn = new CashTransaction
+                            {
+                                PortfolioId = portfolioId,
+                                Type = cashType,
+                                Amount = cashRow.Amount,
+                                Currency = cashRow.Currency.ToUpper(),
+                                TransactionDate = DateTime.Parse(cashRow.Date),
+                                Notes = cashRow.Notes
+                            };
+                            db.CashTransactions.Add(cashTxn);
+                            cashTransactions.Add(cashTxn);
+                        }
+                        catch (Exception ex)
+                        {
+                            errors.Add($"Cash {cashRow.CashType} on {cashRow.Date}: {ex.Message}");
+                        }
+                    }
+                }
+
                 await db.SaveChangesAsync();
 
                 var dtos = transactions.Select(t => new TransactionDto(
@@ -148,6 +198,7 @@ public static class ImportEndpoints
 
                 return Results.Ok(new ImportResultResponse(
                     ImportedCount: transactions.Count,
+                    CashImportedCount: cashTransactions.Count,
                     SkippedCount: errors.Count,
                     Errors: errors,
                     Transactions: dtos

@@ -7,6 +7,33 @@ namespace Profitr.Api.Services;
 public class FxService(HttpClient httpClient, IMemoryCache cache, ILogger<FxService> logger)
 {
     private const string BaseUrl = "https://api.frankfurter.app";
+    private const int MaxRetries = 3;
+    private static readonly TimeSpan[] RetryDelays = [TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)];
+
+    private async Task<string> GetStringWithRetryAsync(string url)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await httpClient.GetStringAsync(url);
+            }
+            catch (HttpRequestException ex) when (attempt < MaxRetries && IsTransient(ex))
+            {
+                logger.LogWarning("Frankfurter request failed (attempt {Attempt}/{Max}, status {Status}), retrying in {Delay}ms: {Url}",
+                    attempt + 1, MaxRetries, ex.StatusCode, RetryDelays[attempt].TotalMilliseconds, url);
+                await Task.Delay(RetryDelays[attempt]);
+            }
+        }
+    }
+
+    private static bool IsTransient(HttpRequestException ex)
+    {
+        // 5xx = server errors, 429 = rate limited, null = network-level failure
+        return ex.StatusCode is null
+            || (int)ex.StatusCode >= 500
+            || ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+    }
 
     private static readonly Dictionary<string, string> CurrencyNames = new()
     {
@@ -38,7 +65,7 @@ public class FxService(HttpClient httpClient, IMemoryCache cache, ILogger<FxServ
         try
         {
             var url = $"{BaseUrl}/latest?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
-            var response = await httpClient.GetStringAsync(url);
+            var response = await GetStringWithRetryAsync(url);
             var doc = JsonDocument.Parse(response);
             var rate = doc.RootElement.GetProperty("rates").GetProperty(to.ToUpper()).GetDecimal();
 
@@ -64,7 +91,7 @@ public class FxService(HttpClient httpClient, IMemoryCache cache, ILogger<FxServ
         try
         {
             var url = $"{BaseUrl}/{dateStr}?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
-            var response = await httpClient.GetStringAsync(url);
+            var response = await GetStringWithRetryAsync(url);
             var doc = JsonDocument.Parse(response);
             var rate = doc.RootElement.GetProperty("rates").GetProperty(to.ToUpper()).GetDecimal();
 
@@ -95,7 +122,7 @@ public class FxService(HttpClient httpClient, IMemoryCache cache, ILogger<FxServ
         try
         {
             var url = $"{BaseUrl}/{start}..{end}?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}";
-            var response = await httpClient.GetStringAsync(url);
+            var response = await GetStringWithRetryAsync(url);
             var doc = JsonDocument.Parse(response);
 
             var rates = new Dictionary<string, decimal>();

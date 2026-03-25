@@ -15,6 +15,17 @@ public record ImportPreviewRow(
     string? Error
 );
 
+public record ImportCashPreviewRow(
+    int RowIndex,
+    string Date,
+    string Description,
+    string CashType,        // "Deposit" or "Withdrawal"
+    decimal Amount,
+    string Currency,
+    bool IsValid,
+    string? Error
+);
+
 public record SymbolMapping(
     string CsvSymbol,
     bool Resolved,
@@ -26,6 +37,7 @@ public record SymbolMapping(
 
 public record ImportPreviewResponse(
     List<ImportPreviewRow> Rows,
+    List<ImportCashPreviewRow> CashRows,
     int TotalRows,
     int ValidRows,
     int SkippedRows,
@@ -44,12 +56,22 @@ public record ImportConfirmRow(
     string? Notes
 );
 
+public record ImportConfirmCashRow(
+    string Date,
+    string CashType,
+    decimal Amount,
+    string Currency,
+    string? Notes
+);
+
 public record ImportConfirmRequest(
-    List<ImportConfirmRow> Rows
+    List<ImportConfirmRow> Rows,
+    List<ImportConfirmCashRow>? CashRows
 );
 
 public record ImportResultResponse(
     int ImportedCount,
+    int CashImportedCount,
     int SkippedCount,
     List<string> Errors,
     List<TransactionDto> Transactions

@@ -8,6 +8,7 @@
 		importApi,
 		market,
 		type ImportPreviewRow,
+		type ImportCashPreviewRow,
 		type ImportPreviewResponse,
 		type ImportResultResponse,
 		type SymbolMapping,
@@ -29,6 +30,7 @@
 
 	// Preview step
 	let previewRows = $state<(ImportPreviewRow & { selected: boolean })[]>([]);
+	let cashPreviewRows = $state<(ImportCashPreviewRow & { selected: boolean })[]>([]);
 	let previewResponse = $state<ImportPreviewResponse | null>(null);
 
 	// Symbol mapping: csvSymbol → selected TickerSearchResult
@@ -42,6 +44,11 @@
 
 	let selectedCount = $derived(previewRows.filter((r) => r.selected).length);
 	let allSelected = $derived(previewRows.length > 0 && previewRows.every((r) => r.selected));
+	let selectedCashCount = $derived(cashPreviewRows.filter((r) => r.selected).length);
+	let allCashSelected = $derived(
+		cashPreviewRows.length > 0 && cashPreviewRows.every((r) => r.selected)
+	);
+	let totalSelectedCount = $derived(selectedCount + selectedCashCount);
 
 	// All unique symbols, unresolved first
 	let allSymbolMappings = $derived(
@@ -72,6 +79,7 @@
 			const response = await importApi.parse(portfolioId, file);
 			previewResponse = response;
 			previewRows = response.rows.map((r) => ({ ...r, selected: r.isValid }));
+			cashPreviewRows = (response.cashRows ?? []).map((r) => ({ ...r, selected: r.isValid }));
 
 			// Initialize user mappings for ALL symbols
 			const mappings: Record<string, TickerSearchResult> = {};
@@ -116,6 +124,18 @@
 
 	function toggleRow(index: number) {
 		previewRows[index].selected = !previewRows[index].selected;
+	}
+
+	function toggleAllCash() {
+		const newVal = !allCashSelected;
+		cashPreviewRows = cashPreviewRows.map((r) => ({
+			...r,
+			selected: r.isValid ? newVal : false
+		}));
+	}
+
+	function toggleCashRow(index: number) {
+		cashPreviewRows[index].selected = !cashPreviewRows[index].selected;
 	}
 
 	function selectMapping(csvSymbol: string, suggestion: TickerSearchResult) {
@@ -170,7 +190,8 @@
 
 	async function confirmImport() {
 		const selected = previewRows.filter((r) => r.selected);
-		if (selected.length === 0) {
+		const selectedCash = cashPreviewRows.filter((r) => r.selected);
+		if (selected.length === 0 && selectedCash.length === 0) {
 			error = 'No transactions selected.';
 			return;
 		}
@@ -196,7 +217,14 @@
 								? `IBKR commission: ${r.nativeCurrency} ${r.commission.toFixed(2)}`
 								: undefined
 					};
-				})
+				}),
+				cashRows: selectedCash.map((r) => ({
+					date: r.date,
+					cashType: r.cashType,
+					amount: r.amount,
+					currency: r.currency,
+					notes: `IBKR import: ${r.description}`
+				}))
 			});
 			step = 'done';
 			await portfolioStore.loadAll();
@@ -210,6 +238,7 @@
 		step = 'upload';
 		fileName = '';
 		previewRows = [];
+		cashPreviewRows = [];
 		previewResponse = null;
 		userMappings = {};
 		searchResults = {};
@@ -470,13 +499,82 @@
 		</div>
 
 		<!-- Preview Table -->
+		<!-- Cash Transactions Table -->
+		{#if cashPreviewRows.length > 0}
+			<div class="bg-surface rounded-xl border border-border mb-4">
+				<div class="p-5 border-b border-border">
+					<h2 class="text-lg font-semibold">Cash Deposits & Withdrawals</h2>
+					<p class="text-sm text-text-muted mt-0.5">
+						{selectedCashCount} of {cashPreviewRows.length} cash transaction{cashPreviewRows.length !== 1 ? 's' : ''} selected
+					</p>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="w-full text-sm">
+						<thead>
+							<tr class="border-b border-border text-text-muted text-left bg-surface-alt">
+								<th class="py-2.5 px-3">
+									<input
+										type="checkbox"
+										checked={allCashSelected}
+										onchange={toggleAllCash}
+										class="rounded"
+									/>
+								</th>
+								<th class="py-2.5 px-3 font-medium">Date</th>
+								<th class="py-2.5 px-3 font-medium">Type</th>
+								<th class="py-2.5 px-3 font-medium">Description</th>
+								<th class="py-2.5 px-3 font-medium text-right">Amount</th>
+								<th class="py-2.5 px-3 font-medium">Currency</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each cashPreviewRows as row, i}
+								<tr
+									class="border-b border-border transition-colors {row.selected
+										? 'hover:bg-surface-alt'
+										: 'opacity-40'}"
+								>
+									<td class="py-2 px-3">
+										<input
+											type="checkbox"
+											checked={row.selected}
+											disabled={!row.isValid}
+											onchange={() => toggleCashRow(i)}
+											class="rounded"
+										/>
+									</td>
+									<td class="py-2 px-3 whitespace-nowrap">{row.date}</td>
+									<td class="py-2 px-3">
+										<span
+											class="px-1.5 py-0.5 rounded text-xs font-medium {row.cashType === 'Deposit'
+												? 'bg-green-100 text-green-700'
+												: 'bg-red-100 text-red-700'}"
+										>
+											{row.cashType}
+										</span>
+									</td>
+									<td class="py-2 px-3 text-text-muted">{row.description}</td>
+									<td class="py-2 px-3 text-right font-medium"
+										>{formatCurrency(row.amount, row.currency)}</td
+									>
+									<td class="py-2 px-3 font-mono text-xs">{row.currency}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Transactions Preview Table -->
 		<div class="bg-surface rounded-xl border border-border">
 			<div class="p-5 border-b border-border flex items-center justify-between">
 				<div>
 					<h2 class="text-lg font-semibold">Preview Import</h2>
 					<p class="text-sm text-text-muted mt-0.5">
-						{selectedCount} of {previewRows.length} transactions selected from
-						<span class="font-medium">{fileName}</span>
+						{totalSelectedCount} item{totalSelectedCount !== 1 ? 's' : ''} selected
+						({selectedCount} transaction{selectedCount !== 1 ? 's' : ''}{#if selectedCashCount > 0}, {selectedCashCount} cash{/if})
+						from <span class="font-medium">{fileName}</span>
 					</p>
 				</div>
 				<div class="flex gap-2">
@@ -488,10 +586,10 @@
 					</button>
 					<button
 						onclick={confirmImport}
-						disabled={selectedCount === 0}
+						disabled={totalSelectedCount === 0}
 						class="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 transition-colors"
 					>
-						Import {selectedCount} Transaction{selectedCount !== 1 ? 's' : ''}
+						Import {totalSelectedCount} Item{totalSelectedCount !== 1 ? 's' : ''}
 					</button>
 				</div>
 			</div>
@@ -619,7 +717,10 @@
 				<p class="text-text-muted mt-1">
 					Successfully imported {result.importedCount} transaction{result.importedCount !== 1
 						? 's'
-						: ''}.
+						: ''}{#if result.cashImportedCount > 0}
+						and {result.cashImportedCount} cash transaction{result.cashImportedCount !== 1
+							? 's'
+							: ''}{/if}.
 				</p>
 			</div>
 

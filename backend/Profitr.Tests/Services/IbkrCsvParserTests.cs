@@ -197,4 +197,160 @@ public class IbkrCsvParserTests
         var igln = rows.First(r => r.Symbol == "IGLN");
         Assert.Equal(4.0m, igln.Commission);
     }
+
+    // === ParseAll / Cash Transaction Tests ===
+
+    [Fact]
+    public void ParseAll_ExtractsBaseCurrency()
+    {
+        var result = _parser.ParseAll(SampleCsv);
+        Assert.Equal("USD", result.BaseCurrency);
+    }
+
+    [Fact]
+    public void ParseAll_ExtractsDepositRows()
+    {
+        var result = _parser.ParseAll(SampleCsv);
+        Assert.Single(result.CashTransactions);
+
+        var deposit = result.CashTransactions[0];
+        Assert.Equal("2025-10-30", deposit.Date);
+        Assert.Equal("Electronic Fund Transfer", deposit.Description);
+        Assert.Equal("Deposit", deposit.CashType);
+        Assert.Equal(20000.0m, deposit.Amount);
+        Assert.Equal("USD", deposit.Currency);
+    }
+
+    [Fact]
+    public void ParseAll_TradeRowsUnchanged()
+    {
+        var result = _parser.ParseAll(SampleCsv);
+        // Same 3 trade rows as before
+        Assert.Equal(3, result.Transactions.Count);
+    }
+
+    [Fact]
+    public void ParseAll_CashRowsNotInTradeRows()
+    {
+        var result = _parser.ParseAll(SampleCsv);
+        Assert.DoesNotContain(result.Transactions, r => r.TransactionType == "Deposit");
+        Assert.DoesNotContain(result.Transactions, r => r.TransactionType == "Withdrawal");
+    }
+
+    [Fact]
+    public void ParseAll_WithdrawalRow_ParsedCorrectly()
+    {
+        var csv = """
+            Summary,Data,Base Currency,EUR
+            Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount,Commission,Net Amount
+            Transaction History,Data,2026-01-15,U***77795,Electronic Fund Transfer,Withdrawal,-,-,-,-,-5000.0,-,-5000.0
+            """;
+        var result = _parser.ParseAll(csv);
+        Assert.Single(result.CashTransactions);
+
+        var withdrawal = result.CashTransactions[0];
+        Assert.Equal("Withdrawal", withdrawal.CashType);
+        Assert.Equal(5000.0m, withdrawal.Amount);  // always positive
+        Assert.Equal("EUR", withdrawal.Currency);   // uses base currency
+    }
+
+    [Fact]
+    public void ParseAll_MixedDepositsAndWithdrawals()
+    {
+        var csv = """
+            Summary,Data,Base Currency,USD
+            Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount,Commission,Net Amount
+            Transaction History,Data,2025-10-30,U***77795,Electronic Fund Transfer,Deposit,-,-,-,-,20000.0,-,20000.0
+            Transaction History,Data,2025-11-15,U***77795,Electronic Fund Transfer,Withdrawal,-,-,-,-,-3000.0,-,-3000.0
+            Transaction History,Data,2025-12-01,U***77795,Wire Transfer,Deposit,-,-,-,-,5000.0,-,5000.0
+            Transaction History,Data,2025-12-01,U***77795,SOME ETF,Buy,TEST,10.0,50.0,USD,-500.0,-1.0,-501.0
+            """;
+        var result = _parser.ParseAll(csv);
+
+        Assert.Equal(3, result.CashTransactions.Count);
+        Assert.Equal(2, result.CashTransactions.Count(c => c.CashType == "Deposit"));
+        Assert.Single(result.CashTransactions, c => c.CashType == "Withdrawal");
+
+        // Trade rows still work
+        Assert.Single(result.Transactions);
+        Assert.Equal("TEST", result.Transactions[0].Symbol);
+    }
+
+    [Fact]
+    public void ParseAll_NoBaseCurrency_DefaultsToUSD()
+    {
+        var csv = """
+            Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount,Commission,Net Amount
+            Transaction History,Data,2025-10-30,U***77795,Electronic Fund Transfer,Deposit,-,-,-,-,1000.0,-,1000.0
+            """;
+        var result = _parser.ParseAll(csv);
+        Assert.Single(result.CashTransactions);
+        Assert.Equal("USD", result.CashTransactions[0].Currency);
+        Assert.Null(result.BaseCurrency);
+    }
+
+    [Fact]
+    public void ParseAll_DepositAmountAlwaysPositive()
+    {
+        var csv = """
+            Summary,Data,Base Currency,USD
+            Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount,Commission,Net Amount
+            Transaction History,Data,2025-10-30,U***77795,Wire Transfer,Deposit,-,-,-,-,10000.0,-,10000.0
+            Transaction History,Data,2025-11-15,U***77795,Wire Transfer,Withdrawal,-,-,-,-,-7500.0,-,-7500.0
+            """;
+        var result = _parser.ParseAll(csv);
+        Assert.All(result.CashTransactions, c => Assert.True(c.Amount > 0));
+    }
+
+    [Fact]
+    public void ParseAll_FullSampleFile_CorrectCashCount()
+    {
+        var fullCsv = """
+            Statement,Header,Field Name,Field Value
+            Statement,Data,Title,Transaction History
+            Statement,Data,Period,"March 13, 2025 - March 13, 2026"
+            Summary,Data,Base Currency,USD
+            Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount ,Commission,Net Amount
+            Transaction History,Data,2026-03-10,U***77795,VANG S&P500 USDA,Sell,VUAA,-30.0,131.3,USD,3939.0,-4.0,3935.0
+            Transaction History,Data,2026-03-10,U***77795,L&G BATTERY VALUE-CHAIN,Buy,BATT,30.0,31.7268,USD,-951.8,-4.0,-955.8
+            Transaction History,Data,2025-12-03,U***77795,USD Credit Interest for Nov-2025,Credit Interest,-,-,-,-,0.06,-,0.06
+            Transaction History,Data,2025-11-05,U***77795,USD Credit Interest for Oct-2025,Credit Interest,-,-,-,-,0.19,-,0.19
+            Transaction History,Data,2025-10-30,U***77795,Electronic Fund Transfer,Deposit,-,-,-,-,20000.0,-,20000.0
+            Transaction History,Data,2025-10-30,U***77795,ISHARES PHYSICAL GOLD ETC,Buy,IGLN,75.0,77.17,USD,-5787.75,-4.0,-5791.75
+            """;
+
+        var result = _parser.ParseAll(fullCsv);
+
+        // 3 trade rows (VUAA sell, BATT buy, IGLN buy)
+        Assert.Equal(3, result.Transactions.Count);
+
+        // 1 deposit, Credit Interest rows are skipped (not Deposit or Withdrawal)
+        Assert.Single(result.CashTransactions);
+        Assert.Equal("Deposit", result.CashTransactions[0].CashType);
+        Assert.Equal(20000.0m, result.CashTransactions[0].Amount);
+    }
+
+    [Fact]
+    public void ParseAll_CreditInterestNotTreatedAsCash()
+    {
+        var result = _parser.ParseAll(SampleCsv);
+        // Credit Interest has TransactionType "Credit Interest", not "Deposit" or "Withdrawal"
+        Assert.DoesNotContain(result.CashTransactions, c => c.Description.Contains("Credit Interest"));
+    }
+
+    [Fact]
+    public void Parse_LegacyMethod_StillReturnsSameResults()
+    {
+        // Ensure the backward-compatible Parse() returns exactly the same trade rows
+        var legacyRows = _parser.Parse(SampleCsv);
+        var fullResult = _parser.ParseAll(SampleCsv);
+
+        Assert.Equal(legacyRows.Count, fullResult.Transactions.Count);
+        for (int i = 0; i < legacyRows.Count; i++)
+        {
+            Assert.Equal(legacyRows[i].Symbol, fullResult.Transactions[i].Symbol);
+            Assert.Equal(legacyRows[i].Date, fullResult.Transactions[i].Date);
+            Assert.Equal(legacyRows[i].Quantity, fullResult.Transactions[i].Quantity);
+        }
+    }
 }

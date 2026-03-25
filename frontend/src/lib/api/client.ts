@@ -318,8 +318,20 @@ export interface SymbolMapping {
 	suggestions: TickerSearchResult[];
 }
 
+export interface ImportCashPreviewRow {
+	rowIndex: number;
+	date: string;
+	description: string;
+	cashType: string;
+	amount: number;
+	currency: string;
+	isValid: boolean;
+	error: string | null;
+}
+
 export interface ImportPreviewResponse {
 	rows: ImportPreviewRow[];
+	cashRows: ImportCashPreviewRow[];
 	totalRows: number;
 	validRows: number;
 	skippedRows: number;
@@ -338,12 +350,22 @@ export interface ImportConfirmRow {
 	notes?: string;
 }
 
+export interface ImportConfirmCashRow {
+	date: string;
+	cashType: string;
+	amount: number;
+	currency: string;
+	notes?: string;
+}
+
 export interface ImportConfirmRequest {
 	rows: ImportConfirmRow[];
+	cashRows?: ImportConfirmCashRow[];
 }
 
 export interface ImportResultResponse {
 	importedCount: number;
+	cashImportedCount: number;
 	skippedCount: number;
 	errors: string[];
 	transactions: Transaction[];
