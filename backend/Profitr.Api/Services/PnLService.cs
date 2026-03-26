@@ -290,10 +290,13 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             foreach (var holding in holdingsAtDate)
             {
                 // Find price on this date from chart data
+                // Fall back to first available point when no earlier data exists
+                // (handles holidays/gaps at the start of the chart range)
                 decimal price = 0;
                 if (charts.TryGetValue(holding.Symbol, out var chart))
                 {
-                    var point = chart.Points.LastOrDefault(p => p.Date.Date <= date);
+                    var point = chart.Points.LastOrDefault(p => p.Date.Date <= date)
+                                ?? chart.Points.FirstOrDefault();
                     if (point != null) price = point.Close;
                 }
 
