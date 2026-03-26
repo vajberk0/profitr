@@ -38,7 +38,7 @@
 								t.type === 'Buy' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
 							}">{t.type}</span>
 						</td>
-						<td class="py-2 px-3 font-medium">{t.symbol}</td>
+						<td class="py-2 px-3 font-medium"><a href="https://finance.yahoo.com/quote/{t.symbol}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">{t.symbol}</a></td>
 						<td class="py-2 px-3 text-right">{formatQuantity(t.quantity)}</td>
 						<td class="py-2 px-3 text-right">{formatCurrency(t.pricePerUnit, t.nativeCurrency)}</td>
 						<td class="py-2 px-3 text-right font-medium">

@@ -1,8 +1,27 @@
 <script lang="ts">
 	import type { Position } from '$lib/api/client';
 	import { formatCurrency, formatPercent, formatQuantity, pnlColor } from '$lib/utils/format';
+	import Sparkline from './Sparkline.svelte';
 
-	let { positions, displayCurrency }: { positions: Position[]; displayCurrency: string } = $props();
+	let {
+		positions,
+		displayCurrency,
+		selectedSymbols = [],
+		onselect
+	}: {
+		positions: Position[];
+		displayCurrency: string;
+		selectedSymbols?: string[];
+		onselect?: (symbols: string[]) => void;
+	} = $props();
+
+	function toggleSymbol(symbol: string) {
+		if (!onselect) return;
+		const newSelected = selectedSymbols.includes(symbol)
+			? selectedSymbols.filter((s) => s !== symbol)
+			: [...selectedSymbols, symbol];
+		onselect(newSelected);
+	}
 </script>
 
 {#if positions.length === 0}
@@ -16,6 +35,7 @@
 			<thead>
 				<tr class="border-b border-border text-text-muted text-left">
 					<th class="py-3 px-3 font-medium">Symbol</th>
+					<th class="py-3 px-3 font-medium">1M</th>
 					<th class="py-3 px-3 font-medium">Type</th>
 					<th class="py-3 px-3 font-medium text-right">Qty</th>
 					<th class="py-3 px-3 font-medium text-right">Avg Cost</th>
@@ -28,17 +48,36 @@
 			</thead>
 			<tbody>
 				{#each positions as p}
-					<tr class="border-b border-border hover:bg-surface-alt transition-colors">
+					<tr
+						class="border-b border-border transition-colors cursor-pointer select-none
+							{selectedSymbols.includes(p.symbol)
+								? 'bg-primary/10 hover:bg-primary/15 border-l-2 border-l-primary'
+								: 'hover:bg-surface-alt'}"
+						onclick={() => toggleSymbol(p.symbol)}
+					>
 						<td class="py-3 px-3">
-							<div class="font-semibold">{p.symbol}</div>
-							<div class="text-xs text-text-muted truncate max-w-[160px]">{p.instrumentName}</div>
+							<a
+								href="https://finance.yahoo.com/quote/{p.symbol}"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="font-semibold text-accent hover:underline"
+								onclick={(e) => e.stopPropagation()}>{p.symbol}</a
+							>
+							<div class="text-xs text-text-muted truncate max-w-[160px]">
+								{p.instrumentName}
+							</div>
 						</td>
 						<td class="py-3 px-3">
-							<span class="text-xs px-1.5 py-0.5 rounded {
-								p.assetType === 'ETF' ? 'bg-purple-100 text-purple-700' :
-								p.assetType === 'ETC' ? 'bg-amber-100 text-amber-700' :
-								'bg-blue-100 text-blue-700'
-							}">{p.assetType}</span>
+							<Sparkline symbol={p.symbol} />
+						</td>
+						<td class="py-3 px-3">
+							<span
+								class="text-xs px-1.5 py-0.5 rounded {p.assetType === 'ETF'
+									? 'bg-purple-100 text-purple-700'
+									: p.assetType === 'ETC'
+										? 'bg-amber-100 text-amber-700'
+										: 'bg-blue-100 text-blue-700'}">{p.assetType}</span
+							>
 						</td>
 						<td class="py-3 px-3 text-right">{formatQuantity(p.quantity)}</td>
 						<td class="py-3 px-3 text-right text-text-muted">
@@ -57,7 +96,9 @@
 							{formatPercent(p.pnLPercentDisplay)}
 						</td>
 						<td class="py-3 px-3 text-right text-text-muted">
-							{p.totalDividendsDisplay > 0 ? formatCurrency(p.totalDividendsDisplay, displayCurrency) : '—'}
+							{p.totalDividendsDisplay > 0
+								? formatCurrency(p.totalDividendsDisplay, displayCurrency)
+								: '—'}
 						</td>
 					</tr>
 				{/each}
