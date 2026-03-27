@@ -17,6 +17,11 @@
 		onselect?: (symbols: string[]) => void;
 	} = $props();
 
+	function resolveAssetType(assetType: string, instrumentName: string): string {
+		if (assetType !== 'ETC' && instrumentName.toUpperCase().includes(' ETC')) return 'ETC';
+		return assetType;
+	}
+
 	function toggleSymbol(symbol: string) {
 		if (!onselect) return;
 		const newSelected = selectedSymbols.includes(symbol)
@@ -80,11 +85,11 @@
 						</td>
 						<td class="py-3 px-3">
 							<span
-								class="text-xs px-1.5 py-0.5 rounded {p.assetType === 'ETF'
+								class="text-xs px-1.5 py-0.5 rounded {resolveAssetType(p.assetType, p.instrumentName) === 'ETF'
 									? 'bg-purple-100 text-purple-700'
-									: p.assetType === 'ETC'
+									: resolveAssetType(p.assetType, p.instrumentName) === 'ETC'
 										? 'bg-amber-100 text-amber-700'
-										: 'bg-blue-100 text-blue-700'}">{p.assetType}</span
+										: 'bg-blue-100 text-blue-700'}">{resolveAssetType(p.assetType, p.instrumentName)}</span
 							>
 						</td>
 						{#if !privacyMode}

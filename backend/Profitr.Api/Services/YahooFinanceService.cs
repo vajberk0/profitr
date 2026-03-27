@@ -32,7 +32,7 @@ public class YahooFinanceService(HttpClient httpClient, IMemoryCache cache, ILog
                     var exchDisp = q.TryGetProperty("exchDisp", out var ed) ? ed.GetString() ?? exchange : exchange;
 
                     if (!string.IsNullOrEmpty(symbol))
-                        results.Add(new TickerSearchResult(symbol, name, NormalizeAssetType(type), exchange, exchDisp));
+                        results.Add(new TickerSearchResult(symbol, name, NormalizeAssetType(type, name), exchange, exchDisp));
                 }
             }
 
@@ -71,7 +71,7 @@ public class YahooFinanceService(HttpClient httpClient, IMemoryCache cache, ILog
             var change = price - prevClose;
             var changePercent = prevClose != 0 ? (change / prevClose) * 100 : 0;
 
-            var quote = new QuoteResult(symbol.ToUpper(), name, price, change, changePercent, currency, exchange, NormalizeAssetType(type));
+            var quote = new QuoteResult(symbol.ToUpper(), name, price, change, changePercent, currency, exchange, NormalizeAssetType(type, name));
             cache.Set(cacheKey, quote, TimeSpan.FromSeconds(60));
             return quote;
         }
@@ -187,12 +187,20 @@ public class YahooFinanceService(HttpClient httpClient, IMemoryCache cache, ILog
         }
     }
 
-    private static string NormalizeAssetType(string type) => type?.ToUpper() switch
+    private static string NormalizeAssetType(string type, string name = "")
     {
-        "EQUITY" => "EQUITY",
-        "ETF" => "ETF",
-        "ETC" => "ETC",
-        "MUTUALFUND" => "ETF",
-        _ => "EQUITY"
-    };
+        var normalized = type?.ToUpper() switch
+        {
+            "ETF" => "ETF",
+            "ETC" => "ETC",
+            "MUTUALFUND" => "ETF",
+            _ => "EQUITY"
+        };
+        // Yahoo Finance classifies many ETCs (e.g. IGLN.L) as EQUITY or ETF;
+        // detect them by their name containing " ETC" (e.g. "iShares Physical Gold ETC")
+        if (normalized != "ETC" && !string.IsNullOrEmpty(name) &&
+            name.Contains(" ETC", StringComparison.OrdinalIgnoreCase))
+            return "ETC";
+        return normalized;
+    }
 }

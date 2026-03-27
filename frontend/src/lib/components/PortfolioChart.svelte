@@ -1,21 +1,36 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createChart, type IChartApi, ColorType, AreaSeries } from 'lightweight-charts';
+	import { createChart, type IChartApi, ColorType, AreaSeries, LineSeries } from 'lightweight-charts';
 	import type { ChartDataPoint } from '$lib/api/client';
+
+	export interface ComparisonSeries {
+		symbol: string;
+		data: ChartDataPoint[];
+		color: string;
+	}
 
 	let {
 		data,
 		currency,
-		percentageMode = false
-	}: { data: ChartDataPoint[]; currency: string; percentageMode?: boolean } = $props();
+		percentageMode = false,
+		comparisonSeries = []
+	}: {
+		data: ChartDataPoint[];
+		currency: string;
+		percentageMode?: boolean;
+		comparisonSeries?: ComparisonSeries[];
+	} = $props();
 
 	let chartContainer: HTMLDivElement;
 	let chart: IChartApi | null = null;
 
-	/** Convert absolute data to % growth from the first point when percentageMode is on. */
-	function toChartPoints(raw: ChartDataPoint[]) {
+	/**
+	 * Convert raw data points to chart-ready {time, value} pairs.
+	 * When asPercent is true, values are normalised to % growth from the first point.
+	 */
+	function toChartPoints(raw: ChartDataPoint[], asPercent: boolean) {
 		const filtered = raw.filter((d) => d.value > 0);
-		if (!percentageMode || filtered.length === 0) {
+		if (!asPercent || filtered.length === 0) {
 			return filtered.map((d) => ({ time: d.date.split('T')[0] as string, value: d.value }));
 		}
 		const baseline = filtered[0].value;
@@ -28,6 +43,16 @@
 	function buildChart() {
 		if (!chartContainer) return;
 		if (chart) chart.remove();
+
+		// Force percentage mode whenever comparison lines are present so all
+		// series share the same scale.
+		const hasComparisons = comparisonSeries.length > 0;
+		const effectivePercentMode = percentageMode || hasComparisons;
+
+		const percentFormatter = (price: number) => {
+			const sign = price >= 0 ? '+' : '';
+			return `${sign}${price.toFixed(2)}%`;
+		};
 
 		chart = createChart(chartContainer, {
 			width: chartContainer.clientWidth,
@@ -55,31 +80,39 @@
 			}
 		});
 
+		// ── Main portfolio / position area series ────────────────────────────
 		const areaSeries = chart.addSeries(AreaSeries, {
 			lineColor: '#2563eb',
 			topColor: 'rgba(37, 99, 235, 0.3)',
 			bottomColor: 'rgba(37, 99, 235, 0.02)',
 			lineWidth: 2,
-			priceFormat: percentageMode
-				? {
-						type: 'custom',
-						formatter: (price: number) => {
-							const sign = price >= 0 ? '+' : '';
-							return `${sign}${price.toFixed(2)}%`;
-						}
-					}
+			priceFormat: effectivePercentMode
+				? { type: 'custom', formatter: percentFormatter }
 				: {
 						type: 'custom',
 						formatter: (price: number) => `${currency} ${price.toFixed(2)}`
 					}
 		});
 
-		const chartPoints = toChartPoints(data);
-
-		if (chartPoints.length > 0) {
-			areaSeries.setData(chartPoints as any);
-			chart.timeScale().fitContent();
+		const mainPoints = toChartPoints(data, effectivePercentMode);
+		if (mainPoints.length > 0) {
+			areaSeries.setData(mainPoints as any);
 		}
+
+		// ── Comparison line series ───────────────────────────────────────────
+		for (const cs of comparisonSeries) {
+			const lineSeries = chart.addSeries(LineSeries, {
+				color: cs.color,
+				lineWidth: 2,
+				priceFormat: { type: 'custom', formatter: percentFormatter }
+			});
+			const points = toChartPoints(cs.data, true); // always % for comparisons
+			if (points.length > 0) {
+				lineSeries.setData(points as any);
+			}
+		}
+
+		chart.timeScale().fitContent();
 	}
 
 	onMount(() => {
@@ -97,8 +130,12 @@
 	});
 
 	$effect(() => {
-		// Rebuild when data or mode changes
-		if ((data || percentageMode !== undefined) && chartContainer) buildChart();
+		// Explicitly reference all reactive inputs so Svelte 5 re-runs this
+		// effect whenever any of them change.
+		data;
+		percentageMode;
+		comparisonSeries;
+		if (chartContainer) buildChart();
 	});
 </script>
 

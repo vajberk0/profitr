@@ -6,27 +6,49 @@
 	import { privacyStore } from '$lib/stores/privacy.svelte';
 	import { market, fx, type ChartDataPoint } from '$lib/api/client';
 	import PortfolioChart from '$lib/components/PortfolioChart.svelte';
+	import type { ComparisonSeries } from '$lib/components/PortfolioChart.svelte';
 	import PositionsTable from '$lib/components/PositionsTable.svelte';
 	import TransactionList from '$lib/components/TransactionList.svelte';
+	import CompareSearch from '$lib/components/CompareSearch.svelte';
 	import { formatCurrency, formatPercent, pnlColor, pnlBgColor } from '$lib/utils/format';
+	import type { TickerSearchResult } from '$lib/api/client';
 
 	let activeTab = $state<'positions' | 'transactions' | 'dividends' | 'cash'>('positions');
 	let refreshInterval: ReturnType<typeof setInterval>;
 	const ranges = ['1w', '1m', '3m', '6m', '1y', 'all'];
+
+	// Colours for up to 6 comparison lines (same order used in chart and badges)
+	const COMPARISON_COLORS = ['#16a34a', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#db2777'];
 
 	// Position selection state
 	let selectedSymbols = $state<string[]>([]);
 	let positionChartData = $state<ChartDataPoint[]>([]);
 	let positionChartLoading = $state(false);
 
+	// Comparison overlay state
+	let comparisonSymbols = $state<string[]>([]);
+	let comparisonRawData = $state<{ symbol: string; data: ChartDataPoint[] }[]>([]);
+	let comparisonLoading = $state(false);
+
+	// Build typed comparison series for PortfolioChart (includes colour)
+	const comparisonSeries = $derived<ComparisonSeries[]>(
+		comparisonRawData.map((d, i) => ({
+			...d,
+			color: COMPARISON_COLORS[i % COMPARISON_COLORS.length]
+		}))
+	);
+
 	// Which data to show on the chart
 	const chartData = $derived(selectedSymbols.length > 0 ? positionChartData : portfolioStore.history);
 	const chartLabel = $derived(
 		selectedSymbols.length > 0
-			? selectedSymbols.join(' + ') + (privacyStore.enabled ? ' (% growth)' : '')
-			: privacyStore.enabled
-				? 'Portfolio Growth (%)'
-				: 'Portfolio Value'
+			? selectedSymbols.join(' + ') +
+					(privacyStore.enabled || comparisonSymbols.length > 0 ? ' (% growth)' : '')
+			: comparisonSymbols.length > 0
+				? 'Portfolio vs. Comparison (%)'
+				: privacyStore.enabled
+					? 'Portfolio Growth (%)'
+					: 'Portfolio Value'
 	);
 
 	const rangeMap: Record<string, string> = {
@@ -54,6 +76,62 @@
 			loadPositionCharts();
 		} else {
 			portfolioStore.loadHistory(range);
+		}
+		if (comparisonSymbols.length > 0) {
+			loadComparisonData();
+		}
+	}
+
+	async function addComparisonSymbol(result: TickerSearchResult) {
+		if (comparisonSymbols.includes(result.symbol)) return;
+		if (comparisonSymbols.length >= COMPARISON_COLORS.length) return;
+		comparisonSymbols = [...comparisonSymbols, result.symbol];
+		await loadComparisonData();
+	}
+
+	async function removeComparisonSymbol(sym: string) {
+		comparisonSymbols = comparisonSymbols.filter((s) => s !== sym);
+		await loadComparisonData();
+	}
+
+	async function loadComparisonData() {
+		if (comparisonSymbols.length === 0) {
+			comparisonRawData = [];
+			return;
+		}
+		if (!portfolioStore.summary) return;
+		comparisonLoading = true;
+		try {
+			const displayCurrency = portfolioStore.summary.displayCurrency;
+			const yahooRange = rangeMap[portfolioStore.historyRange] || '1y';
+
+			const results = await Promise.all(
+				comparisonSymbols.map(async (sym) => {
+					const chartResult = await market.chart(sym, yahooRange);
+					if (!chartResult?.points?.length) return { symbol: sym, data: [] as ChartDataPoint[] };
+
+					let fxRate = 1;
+					if (chartResult.currency && chartResult.currency !== displayCurrency) {
+						try {
+							const r = await fx.latest(chartResult.currency, displayCurrency);
+							fxRate = r.rate;
+						} catch {
+							fxRate = 1;
+						}
+					}
+
+					const data: ChartDataPoint[] = chartResult.points.map((p) => ({
+						date: p.date.split('T')[0],
+						value: p.close * fxRate
+					}));
+					return { symbol: sym, data };
+				})
+			);
+			comparisonRawData = results;
+		} catch (e) {
+			console.error('Failed to load comparison charts', e);
+		} finally {
+			comparisonLoading = false;
 		}
 	}
 
@@ -202,11 +280,14 @@
 
 		<!-- Chart -->
 		<div class="bg-surface rounded-xl border border-border p-5 mb-6">
-			<div class="flex items-center justify-between mb-4">
-				<div class="flex items-center gap-3">
-					<h2 class="text-lg font-semibold">{chartLabel}</h2>
+			<!-- Chart header: title + badges + compare search + range buttons -->
+			<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+				<!-- Left: title + position badges + comparison badges -->
+				<div class="flex items-center gap-2 flex-wrap min-w-0">
+					<h2 class="text-lg font-semibold whitespace-nowrap">{chartLabel}</h2>
+
 					{#if selectedSymbols.length > 0}
-						<div class="flex items-center gap-1.5">
+						<div class="flex items-center gap-1.5 flex-wrap">
 							{#each selectedSymbols as sym}
 								<button
 									onclick={() =>
@@ -215,52 +296,78 @@
 									title="Remove {sym}"
 								>
 									{sym}
-									<svg
-										class="w-3 h-3"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M6 18L18 6M6 6l12 12"
-										/>
+									<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 									</svg>
 								</button>
 							{/each}
 							<button
 								onclick={() => handlePositionSelect([])}
-								class="text-xs text-text-muted hover:text-danger transition-colors ml-1"
+								class="text-xs text-text-muted hover:text-danger transition-colors"
 							>
 								Clear all
 							</button>
 						</div>
 					{/if}
-				</div>
-				<div class="flex gap-1">
-					{#each ranges as r}
+
+					<!-- Comparison badges (coloured to match chart lines) -->
+					{#each comparisonSeries as cs}
 						<button
-							onclick={() => handleRangeChange(r)}
-							class="px-3 py-1 text-xs font-medium rounded-md transition-colors {portfolioStore.historyRange ===
-							r
-								? 'bg-primary text-white'
-								: 'text-text-muted hover:bg-surface-alt'}"
+							onclick={() => removeComparisonSymbol(cs.symbol)}
+							class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-opacity hover:opacity-70"
+							style="border-color: {cs.color}20; color: {cs.color}; background: {cs.color}15;"
+							title="Remove {cs.symbol} comparison"
 						>
-							{r.toUpperCase()}
+							<span
+								class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
+								style="background: {cs.color}"
+							></span>
+							{cs.symbol}
+							{#if comparisonLoading}
+								<span class="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"></span>
+							{:else}
+								<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							{/if}
 						</button>
 					{/each}
 				</div>
+
+				<!-- Right: compare search + range buttons -->
+				<div class="flex items-center gap-2 flex-shrink-0">
+					{#if comparisonSymbols.length < COMPARISON_COLORS.length}
+						<CompareSearch onselect={(r) => addComparisonSymbol(r)} />
+					{/if}
+					<div class="flex gap-1">
+						{#each ranges as r}
+							<button
+								onclick={() => handleRangeChange(r)}
+								class="px-3 py-1 text-xs font-medium rounded-md transition-colors {portfolioStore.historyRange ===
+								r
+									? 'bg-primary text-white'
+									: 'text-text-muted hover:bg-surface-alt'}"
+							>
+								{r.toUpperCase()}
+							</button>
+						{/each}
+					</div>
+				</div>
 			</div>
-			{#if positionChartLoading}
+
+			{#if positionChartLoading || comparisonLoading && chartData.length === 0}
 				<div class="h-[300px] flex items-center justify-center">
 					<div
 						class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"
 					></div>
 				</div>
 			{:else if chartData.length > 0}
-				<PortfolioChart data={chartData} currency={s.displayCurrency} percentageMode={privacyStore.enabled} />
+				<PortfolioChart
+					data={chartData}
+					currency={s.displayCurrency}
+					percentageMode={privacyStore.enabled}
+					{comparisonSeries}
+				/>
 			{:else}
 				<div class="h-[300px] flex items-center justify-center text-text-muted">
 					{selectedSymbols.length > 0
