@@ -7,11 +7,13 @@
 		positions,
 		displayCurrency,
 		selectedSymbols = [],
+		privacyMode = false,
 		onselect
 	}: {
 		positions: Position[];
 		displayCurrency: string;
 		selectedSymbols?: string[];
+		privacyMode?: boolean;
 		onselect?: (symbols: string[]) => void;
 	} = $props();
 
@@ -37,13 +39,19 @@
 					<th class="py-3 px-3 font-medium">Symbol</th>
 					<th class="py-3 px-3 font-medium">1M</th>
 					<th class="py-3 px-3 font-medium">Type</th>
-					<th class="py-3 px-3 font-medium text-right">Qty</th>
+					{#if !privacyMode}
+						<th class="py-3 px-3 font-medium text-right">Qty</th>
+					{/if}
 					<th class="py-3 px-3 font-medium text-right">Avg Cost</th>
 					<th class="py-3 px-3 font-medium text-right">Price</th>
-					<th class="py-3 px-3 font-medium text-right">Value ({displayCurrency})</th>
-					<th class="py-3 px-3 font-medium text-right">P&L ({displayCurrency})</th>
+					{#if !privacyMode}
+						<th class="py-3 px-3 font-medium text-right">Value ({displayCurrency})</th>
+						<th class="py-3 px-3 font-medium text-right">P&L ({displayCurrency})</th>
+					{/if}
 					<th class="py-3 px-3 font-medium text-right">P&L %</th>
-					<th class="py-3 px-3 font-medium text-right">Dividends</th>
+					{#if !privacyMode}
+						<th class="py-3 px-3 font-medium text-right">Dividends</th>
+					{/if}
 				</tr>
 			</thead>
 			<tbody>
@@ -79,27 +87,33 @@
 										: 'bg-blue-100 text-blue-700'}">{p.assetType}</span
 							>
 						</td>
-						<td class="py-3 px-3 text-right">{formatQuantity(p.quantity)}</td>
+						{#if !privacyMode}
+							<td class="py-3 px-3 text-right">{formatQuantity(p.quantity)}</td>
+						{/if}
 						<td class="py-3 px-3 text-right text-text-muted">
 							{formatCurrency(p.averageCostBasis, p.nativeCurrency)}
 						</td>
 						<td class="py-3 px-3 text-right font-medium">
 							{formatCurrency(p.currentPrice, p.nativeCurrency)}
 						</td>
-						<td class="py-3 px-3 text-right font-medium">
-							{formatCurrency(p.currentValueDisplay, displayCurrency)}
-						</td>
-						<td class="py-3 px-3 text-right font-semibold {pnlColor(p.pnLDisplay)}">
-							{formatCurrency(p.pnLDisplay, displayCurrency)}
-						</td>
+						{#if !privacyMode}
+							<td class="py-3 px-3 text-right font-medium">
+								{formatCurrency(p.currentValueDisplay, displayCurrency)}
+							</td>
+							<td class="py-3 px-3 text-right font-semibold {pnlColor(p.pnLDisplay)}">
+								{formatCurrency(p.pnLDisplay, displayCurrency)}
+							</td>
+						{/if}
 						<td class="py-3 px-3 text-right font-semibold {pnlColor(p.pnLPercentDisplay)}">
 							{formatPercent(p.pnLPercentDisplay)}
 						</td>
-						<td class="py-3 px-3 text-right text-text-muted">
-							{p.totalDividendsDisplay > 0
-								? formatCurrency(p.totalDividendsDisplay, displayCurrency)
-								: '—'}
-						</td>
+						{#if !privacyMode}
+							<td class="py-3 px-3 text-right text-text-muted">
+								{p.totalDividendsDisplay > 0
+									? formatCurrency(p.totalDividendsDisplay, displayCurrency)
+									: '—'}
+							</td>
+						{/if}
 					</tr>
 				{/each}
 			</tbody>

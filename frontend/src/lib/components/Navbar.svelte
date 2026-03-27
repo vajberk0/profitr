@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { portfolioStore } from '$lib/stores/portfolio.svelte';
+	import { privacyStore } from '$lib/stores/privacy.svelte';
 	import PortfolioSwitcher from './PortfolioSwitcher.svelte';
 
 	let showUserMenu = $state(false);
@@ -26,6 +27,31 @@
 			<div class="flex items-center gap-4">
 				{#if authStore.isLoggedIn}
 					<PortfolioSwitcher />
+
+					<!-- Privacy mode quick-toggle -->
+					<button
+						onclick={() => privacyStore.set(!privacyStore.enabled)}
+						title={privacyStore.enabled ? 'Privacy Mode ON — click to disable' : 'Privacy Mode OFF — click to enable'}
+						class="p-1.5 rounded-lg transition-colors {privacyStore.enabled
+							? 'bg-primary/15 text-primary hover:bg-primary/25'
+							: 'text-text-muted hover:bg-surface-alt hover:text-text'}"
+					>
+						{#if privacyStore.enabled}
+							<!-- Eye-slash icon (mode is ON, values are hidden) -->
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88L6.59 6.59m7.532 7.532l3.128 3.128M3 3l18 18" />
+							</svg>
+						{:else}
+							<!-- Eye icon (mode is OFF, values are visible) -->
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+							</svg>
+						{/if}
+					</button>
 
 					<div class="relative">
 						<button

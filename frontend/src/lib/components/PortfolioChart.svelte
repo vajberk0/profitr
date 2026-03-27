@@ -3,10 +3,27 @@
 	import { createChart, type IChartApi, ColorType, AreaSeries } from 'lightweight-charts';
 	import type { ChartDataPoint } from '$lib/api/client';
 
-	let { data, currency }: { data: ChartDataPoint[]; currency: string } = $props();
+	let {
+		data,
+		currency,
+		percentageMode = false
+	}: { data: ChartDataPoint[]; currency: string; percentageMode?: boolean } = $props();
 
 	let chartContainer: HTMLDivElement;
 	let chart: IChartApi | null = null;
+
+	/** Convert absolute data to % growth from the first point when percentageMode is on. */
+	function toChartPoints(raw: ChartDataPoint[]) {
+		const filtered = raw.filter((d) => d.value > 0);
+		if (!percentageMode || filtered.length === 0) {
+			return filtered.map((d) => ({ time: d.date.split('T')[0] as string, value: d.value }));
+		}
+		const baseline = filtered[0].value;
+		return filtered.map((d) => ({
+			time: d.date.split('T')[0] as string,
+			value: ((d.value / baseline) - 1) * 100
+		}));
+	}
 
 	function buildChart() {
 		if (!chartContainer) return;
@@ -43,21 +60,24 @@
 			topColor: 'rgba(37, 99, 235, 0.3)',
 			bottomColor: 'rgba(37, 99, 235, 0.02)',
 			lineWidth: 2,
-			priceFormat: {
-				type: 'custom',
-				formatter: (price: number) => `${currency} ${price.toFixed(2)}`
-			}
+			priceFormat: percentageMode
+				? {
+						type: 'custom',
+						formatter: (price: number) => {
+							const sign = price >= 0 ? '+' : '';
+							return `${sign}${price.toFixed(2)}%`;
+						}
+					}
+				: {
+						type: 'custom',
+						formatter: (price: number) => `${currency} ${price.toFixed(2)}`
+					}
 		});
 
-		const chartData = data
-			.filter((d) => d.value > 0)
-			.map((d) => ({
-				time: d.date.split('T')[0] as string,
-				value: d.value
-			}));
+		const chartPoints = toChartPoints(data);
 
-		if (chartData.length > 0) {
-			areaSeries.setData(chartData as any);
+		if (chartPoints.length > 0) {
+			areaSeries.setData(chartPoints as any);
 			chart.timeScale().fitContent();
 		}
 	}
@@ -77,8 +97,8 @@
 	});
 
 	$effect(() => {
-		// Rebuild when data changes
-		if (data && chartContainer) buildChart();
+		// Rebuild when data or mode changes
+		if ((data || percentageMode !== undefined) && chartContainer) buildChart();
 	});
 </script>
 

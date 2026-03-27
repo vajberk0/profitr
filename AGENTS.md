@@ -34,6 +34,7 @@ Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-cur
 | `lib/api/client.ts` | Typed API client with all endpoints + TypeScript interfaces |
 | `lib/stores/auth.svelte.ts` | Auth state (Svelte 5 runes) |
 | `lib/stores/portfolio.svelte.ts` | Portfolio/transaction/dividend/cash state |
+| `lib/stores/privacy.svelte.ts` | Privacy mode toggle — persisted in `localStorage`, pure frontend preference |
 | `lib/components/` | Navbar, PortfolioSwitcher, PortfolioChart, PositionsTable, TickerSearch, TransactionList |
 | `lib/utils/format.ts` | Currency/percent/date formatting helpers |
 | `routes/+page.svelte` | Landing page with Google sign-in |
@@ -41,7 +42,7 @@ Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-cur
 | `routes/portfolio/[id]/add/+page.svelte` | Add buy/sell transaction with ticker search |
 | `routes/portfolio/[id]/dividend/+page.svelte` | Record dividend payment |
 | `routes/portfolio/[id]/cash/+page.svelte` | Record cash deposit or withdrawal |
-| `routes/settings/+page.svelte` | Display currency selector (30 currencies), portfolio management |
+| `routes/settings/+page.svelte` | Display currency selector (30 currencies), privacy mode toggle, portfolio management |
 
 ### Tests (`backend/Profitr.Tests/`)
 | Path | Purpose |
@@ -109,6 +110,7 @@ The app uses a lightweight migration system (`Data/DatabaseMigrator.cs`) instead
 3. **Caching** — Yahoo quotes cached 60s, search results 5min, chart data 24h, FX latest 1h, FX historical 24h. All via `IMemoryCache`.
 4. **Static frontend build** — SvelteKit builds to `backend/Profitr.Api/wwwroot/` via `@sveltejs/adapter-static`. The .NET app serves it with `UseStaticFiles` + SPA fallback.
 5. **Auth** — Google OIDC → ASP.NET cookie auth. Callback path is `/signin-google`. API returns 401 for unauthenticated requests to `/api/*`.
+6. **Privacy mode** — A purely client-side preference (`localStorage`) that hides all absolute monetary amounts (portfolio value, cost basis, position size/value, P&L in currency, dividends) and switches the portfolio chart to percentage growth from the first data point. Performance metrics (P&L %, chart trend) remain visible. Toggled via a quick-access button in the Navbar or the full toggle in Settings. No backend involvement — nothing is stored server-side.
 
 ## Google OAuth Setup
 

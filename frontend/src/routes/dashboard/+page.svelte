@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { portfolioStore } from '$lib/stores/portfolio.svelte';
+	import { privacyStore } from '$lib/stores/privacy.svelte';
 	import { market, fx, type ChartDataPoint } from '$lib/api/client';
 	import PortfolioChart from '$lib/components/PortfolioChart.svelte';
 	import PositionsTable from '$lib/components/PositionsTable.svelte';
@@ -21,7 +22,11 @@
 	// Which data to show on the chart
 	const chartData = $derived(selectedSymbols.length > 0 ? positionChartData : portfolioStore.history);
 	const chartLabel = $derived(
-		selectedSymbols.length > 0 ? selectedSymbols.join(' + ') : 'Portfolio Value'
+		selectedSymbols.length > 0
+			? selectedSymbols.join(' + ') + (privacyStore.enabled ? ' (% growth)' : '')
+			: privacyStore.enabled
+				? 'Portfolio Growth (%)'
+				: 'Portfolio Value'
 	);
 
 	const rangeMap: Record<string, string> = {
@@ -153,35 +158,43 @@
 		<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Total Value</p>
-				<p class="text-2xl font-bold">{formatCurrency(s.totalValue, s.displayCurrency)}</p>
+				<p class="text-2xl font-bold">
+					{privacyStore.enabled ? '——' : formatCurrency(s.totalValue, s.displayCurrency)}
+				</p>
 			</div>
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Cost Basis</p>
-				<p class="text-2xl font-bold">{formatCurrency(s.totalCostBasis, s.displayCurrency)}</p>
+				<p class="text-2xl font-bold">
+					{privacyStore.enabled ? '——' : formatCurrency(s.totalCostBasis, s.displayCurrency)}
+				</p>
 			</div>
 			<div class="rounded-xl border p-5 {pnlBgColor(s.totalPnL)}">
 				<p class="text-sm text-text-muted mb-1">Total P&L</p>
 				<p class="text-2xl font-bold {pnlColor(s.totalPnL)}">
-					{formatCurrency(s.totalPnL, s.displayCurrency)}
-					<span class="text-base">{formatPercent(s.totalPnLPercent)}</span>
+					{#if privacyStore.enabled}
+						<span class="text-2xl">{formatPercent(s.totalPnLPercent)}</span>
+					{:else}
+						{formatCurrency(s.totalPnL, s.displayCurrency)}
+						<span class="text-base">{formatPercent(s.totalPnLPercent)}</span>
+					{/if}
 				</p>
 			</div>
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Total Dividends</p>
 				<p class="text-2xl font-bold">
-					{formatCurrency(s.totalDividends, s.displayCurrency)}
+					{privacyStore.enabled ? '——' : formatCurrency(s.totalDividends, s.displayCurrency)}
 				</p>
 			</div>
 			<div
-				class="rounded-xl border p-5 {s.cashBalance < 0
+				class="rounded-xl border p-5 {!privacyStore.enabled && s.cashBalance < 0
 					? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
 					: 'bg-surface border-border'}"
 			>
 				<p class="text-sm text-text-muted mb-1">Cash Balance</p>
-				<p class="text-2xl font-bold {pnlColor(s.cashBalance)}">
-					{formatCurrency(s.cashBalance, s.displayCurrency)}
+				<p class="text-2xl font-bold {privacyStore.enabled ? '' : pnlColor(s.cashBalance)}">
+					{privacyStore.enabled ? '——' : formatCurrency(s.cashBalance, s.displayCurrency)}
 				</p>
-				{#if s.cashBalance < 0}
+				{#if !privacyStore.enabled && s.cashBalance < 0}
 					<p class="text-xs text-text-muted mt-1">Margin / unrecorded deposits</p>
 				{/if}
 			</div>
@@ -247,7 +260,7 @@
 					></div>
 				</div>
 			{:else if chartData.length > 0}
-				<PortfolioChart data={chartData} currency={s.displayCurrency} />
+				<PortfolioChart data={chartData} currency={s.displayCurrency} percentageMode={privacyStore.enabled} />
 			{:else}
 				<div class="h-[300px] flex items-center justify-center text-text-muted">
 					{selectedSymbols.length > 0
@@ -335,6 +348,7 @@
 						positions={s.positions}
 						displayCurrency={s.displayCurrency}
 						{selectedSymbols}
+						privacyMode={privacyStore.enabled}
 						onselect={handlePositionSelect}
 					/>
 				{:else if activeTab === 'transactions'}

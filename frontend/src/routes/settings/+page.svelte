@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { privacyStore } from '$lib/stores/privacy.svelte';
 	import { fx, type CurrencyInfo } from '$lib/api/client';
 	import { portfolioStore } from '$lib/stores/portfolio.svelte';
 
@@ -84,6 +85,37 @@
 				<span class="text-sm text-success font-medium">✓ Saved</span>
 			{/if}
 		</div>
+	</div>
+
+	<!-- Privacy Mode -->
+	<div class="bg-surface rounded-xl border border-border p-6 mb-6">
+		<h2 class="text-lg font-semibold mb-1">Privacy Mode</h2>
+		<p class="text-sm text-text-muted mb-4">
+			Hides absolute monetary amounts (portfolio value, position sizes, P&L in currency) and
+			switches the chart to percentage growth. Performance metrics like P&L % remain visible.
+			Great for sharing your screen without revealing how much money you have.
+		</p>
+		<label class="flex items-center gap-3 cursor-pointer select-none">
+			<div class="relative">
+				<input
+					type="checkbox"
+					class="sr-only peer"
+					checked={privacyStore.enabled}
+					onchange={(e) => privacyStore.set((e.target as HTMLInputElement).checked)}
+				/>
+				<div
+					class="w-11 h-6 rounded-full transition-colors
+						{privacyStore.enabled ? 'bg-primary' : 'bg-border'}"
+				></div>
+				<div
+					class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
+						{privacyStore.enabled ? 'translate-x-5' : 'translate-x-0'}"
+				></div>
+			</div>
+			<span class="text-sm font-medium">
+				{privacyStore.enabled ? 'Privacy Mode is ON' : 'Privacy Mode is OFF'}
+			</span>
+		</label>
 	</div>
 
 	<!-- Portfolio Management -->
