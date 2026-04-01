@@ -1,5 +1,7 @@
 # 📈 Profitr — Portfolio Tracker
 
+**Live at [profitr.je.mk](https://profitr.je.mk/)**
+
 Track your stock, ETF & ETC portfolio with real-time multi-currency profit & loss monitoring.
 
 ## Features
@@ -16,7 +18,7 @@ Track your stock, ETF & ETC portfolio with real-time multi-currency profit & los
 
 | Component | Technology |
 |---|---|
-| Backend | .NET 9 Minimal API |
+| Backend | .NET 10 Minimal API |
 | Database | SQLite via EF Core |
 | Frontend | Svelte 5 (SvelteKit) + Tailwind CSS |
 | Charts | TradingView Lightweight Charts |
@@ -25,7 +27,7 @@ Track your stock, ETF & ETC portfolio with real-time multi-currency profit & los
 
 ## Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Node.js 20+](https://nodejs.org/)
 - Google OAuth credentials (see below)
 
@@ -110,6 +112,9 @@ profitr/
 │   │   ├── lib/             # Components, stores, API client
 │   │   └── routes/          # SvelteKit pages
 │   └── svelte.config.js
+├── deploy.sh                 # VM deploy script (git pull, build, restart)
+├── .github/workflows/
+│   └── deploy.yml            # GitHub Actions: SSH deploy on push to main
 ├── PLAN.md                   # Detailed architecture plan
 └── README.md
 ```
@@ -127,6 +132,16 @@ profitr/
 | `GET /api/market/search?q=AAPL` | Ticker search |
 | `GET /api/market/quote?symbols=AAPL,MSFT` | Live quotes |
 | `GET /api/fx/currencies` | 30 supported currencies |
+
+## Deployment
+
+The app auto-deploys on every push to `main` via GitHub Actions:
+
+1. GitHub Actions (cloud runner) SSHs into the production VM
+2. Runs `deploy.sh` which: `git pull` → `npm ci && npm run build` → `dotnet publish` → `systemctl --user restart profitr`
+3. The .NET app runs as a systemd user service, serving both the API and the static frontend
+
+See `deploy.sh` and `.github/workflows/deploy.yml` for details.
 
 ## License
 

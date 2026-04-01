@@ -1,5 +1,7 @@
 # Profitr — Portfolio Tracker
 
+**Live at [profitr.je.mk](https://profitr.je.mk/)**
+
 ## Overview
 
 A web application to track stock/ETF/ETC portfolios with multi-currency profit/loss monitoring.
@@ -17,7 +19,7 @@ A web application to track stock/ETF/ETC portfolios with multi-currency profit/l
 │  Lightweight Charts (TradingView) for financial charts   │
 │  Periodic fetch every 60s for live quotes                │
 ├──────────────────────────────────────────────────────────┤
-│              BACKEND — .NET 9 Web API                    │
+│              BACKEND — .NET 10 Web API                   │
 │                                                           │
 │  /api/auth/*        → Google OAuth (OIDC)                │
 │  /api/portfolios/*  → Portfolio & Position CRUD          │
@@ -41,8 +43,8 @@ A web application to track stock/ETF/ETC portfolios with multi-currency profit/l
 
 | Layer            | Technology                        | Why                                                    |
 | ---------------- | --------------------------------- | ------------------------------------------------------ |
-| **Backend**      | .NET 9 Minimal API                | User requirement. Fast, great tooling.                 |
-| **ORM**          | EF Core 9 + SQLite                | Code-first, migrations, easy local dev.                |
+| **Backend**      | .NET 10 Minimal API               | User requirement. Fast, great tooling.                 |
+| **ORM**          | EF Core 10 + SQLite               | Code-first, migrations, easy local dev.                |
 | **Auth**         | ASP.NET Cookie Auth + Google OIDC | Built-in .NET support, no extra libs.                  |
 | **Frontend**     | Svelte 5 (SvelteKit)             | Simpler than React, less boilerplate, fast.            |
 | **Charts**       | Lightweight Charts (TradingView) | Purpose-built for financial data, small bundle.        |
@@ -226,7 +228,7 @@ This captures both stock price movement AND currency effects.
 ## Implementation Phases
 
 ### Phase 1 — Project Scaffolding & Auth
-- .NET 9 Web API project with EF Core + SQLite
+- .NET 10 Web API project with EF Core + SQLite
 - Svelte 5 (SvelteKit) frontend project
 - Google OAuth flow (backend handles OIDC, sets cookie)
 - Basic layout shell with auth state
@@ -308,5 +310,8 @@ profitr/
 │   │   └── app.html
 │   ├── package.json
 │   └── svelte.config.js
+├── deploy.sh                 — VM deploy script
+├── .github/workflows/
+│   └── deploy.yml            — GitHub Actions auto-deploy
 └── .gitignore
 ```

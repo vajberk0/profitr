@@ -4,9 +4,11 @@
 
 Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-currency P&L monitoring. Users sign in with Google, search for tickers, record buy/sell transactions, track dividends, and see live profit/loss in their preferred currency.
 
+**Live at [profitr.je.mk](https://profitr.je.mk/)**
+
 ## Architecture
 
-- **Backend**: .NET 9 Minimal API (`backend/Profitr.Api/`)
+- **Backend**: .NET 10 Minimal API (`backend/Profitr.Api/`)
 - **Frontend**: Svelte 5 / SvelteKit (`frontend/`)
 - **Database**: SQLite via EF Core (file: `backend/Profitr.Api/profitr.db`)
 - **External APIs**: Yahoo Finance (market data), Frankfurter API (FX rates from ECB)
@@ -27,6 +29,7 @@ Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-cur
 | `Models/` | DTOs for API requests/responses |
 | `appsettings.json` | Config (connection string, Google OAuth placeholder) |
 | `appsettings.Development.json` | Real Google OAuth credentials (gitignored) |
+| `appsettings.Production.json` | Production config on deploy VM (gitignored, placed in `bin/publish/`) |
 
 ### Frontend (`frontend/src/`)
 | Path | Purpose |
@@ -43,6 +46,12 @@ Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-cur
 | `routes/portfolio/[id]/dividend/+page.svelte` | Record dividend payment |
 | `routes/portfolio/[id]/cash/+page.svelte` | Record cash deposit or withdrawal |
 | `routes/settings/+page.svelte` | Display currency selector (30 currencies), privacy mode toggle, portfolio management |
+
+### Deployment
+| Path | Purpose |
+|---|---|
+| `deploy.sh` | VM deploy script — git pull, build frontend, publish backend, restart service |
+| `.github/workflows/deploy.yml` | GitHub Actions workflow — SSHs into VM and runs `deploy.sh` on push to `main` |
 
 ### Tests (`backend/Profitr.Tests/`)
 | Path | Purpose |
@@ -72,6 +81,29 @@ cd frontend && npm run build
 ```
 cd backend && dotnet test
 ```
+
+### After making changes:
+```
+git add -A && git commit -m "description of changes" && git push
+```
+Pushing to `main` triggers auto-deployment to production via GitHub Actions.
+
+## Deployment
+
+The app is hosted on a VM and auto-deploys on every push to `main`.
+
+**How it works:**
+1. Push to `main` triggers `.github/workflows/deploy.yml`
+2. GitHub Actions (cloud runner) SSHs into the production VM
+3. Runs `deploy.sh`: `git pull` → `npm ci && npm run build` → `dotnet publish` → `systemctl --user restart profitr`
+4. The .NET app runs as a **systemd user service** (`~/.config/systemd/user/profitr.service`), serving both the API and the static frontend
+
+**GitHub Secrets required:**
+- `VM_HOST` — Production VM IP
+- `VM_USERNAME` — SSH username
+- `VM_SSH_KEY` — Dedicated deploy SSH private key
+
+**Production config:** `appsettings.Production.json` lives on the VM in the publish directory (not in the repo). It contains Google OAuth credentials and any production overrides.
 
 ## Database Migrations
 
@@ -108,7 +140,11 @@ The app uses a lightweight migration system (`Data/DatabaseMigrator.cs`) instead
 
 ## Google OAuth Setup
 
-Credentials are in `appsettings.Development.json` (gitignored). The authorized redirect URI in Google Cloud Console must be: `http://localhost:5000/signin-google`
+Credentials are in `appsettings.Development.json` (gitignored) for local dev, and `appsettings.Production.json` on the deploy VM.
+
+Authorized redirect URIs in Google Cloud Console:
+- Local: `http://localhost:5000/signin-google`
+- Production: `https://profitr.je.mk/signin-google`
 
 ## What's Not Yet Implemented (from PLAN.md)
 
