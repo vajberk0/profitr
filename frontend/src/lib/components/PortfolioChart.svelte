@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { createChart, type IChartApi, ColorType, AreaSeries, LineSeries } from 'lightweight-charts';
 	import type { ChartDataPoint } from '$lib/api/client';
+	import { themeStore } from '$lib/stores/theme.svelte';
 
 	export interface ComparisonSeries {
 		symbol: string;
@@ -54,24 +55,26 @@
 			return `${sign}${price.toFixed(2)}%`;
 		};
 
+		const dark = themeStore.isDark;
+
 		chart = createChart(chartContainer, {
 			width: chartContainer.clientWidth,
 			height: 300,
 			layout: {
 				attributionLogo: false,
-				background: { type: ColorType.Solid, color: '#ffffff' },
-				textColor: '#64748b',
+				background: { type: ColorType.Solid, color: dark ? '#1e293b' : '#ffffff' },
+				textColor: dark ? '#94a3b8' : '#64748b',
 				fontFamily: 'system-ui'
 			},
 			grid: {
-				vertLines: { color: '#f1f5f9' },
-				horzLines: { color: '#f1f5f9' }
+				vertLines: { color: dark ? '#334155' : '#f1f5f9' },
+				horzLines: { color: dark ? '#334155' : '#f1f5f9' }
 			},
 			rightPriceScale: {
-				borderColor: '#e2e8f0'
+				borderColor: dark ? '#334155' : '#e2e8f0'
 			},
 			timeScale: {
-				borderColor: '#e2e8f0',
+				borderColor: dark ? '#334155' : '#e2e8f0',
 				timeVisible: false
 			},
 			crosshair: {
@@ -135,6 +138,7 @@
 		data;
 		percentageMode;
 		comparisonSeries;
+		themeStore.isDark;
 		if (chartContainer) buildChart();
 	});
 </script>

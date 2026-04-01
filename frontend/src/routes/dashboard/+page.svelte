@@ -233,7 +233,7 @@
 		{@const s = portfolioStore.summary}
 
 		<!-- Summary Cards -->
-		<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Total Value</p>
 				<p class="text-2xl font-bold">
@@ -256,6 +256,12 @@
 						<span class="text-base">{formatPercent(s.totalPnLPercent)}</span>
 					{/if}
 				</p>
+				{#if s.annualizedReturnPercent != null}
+					<p class="text-xs mt-1.5 {pnlColor(s.annualizedReturnPercent)}" title="Time-weighted return annualized to a yearly rate">
+						↗ {formatPercent(s.annualizedReturnPercent)}/yr
+						<span class="text-text-muted">{s.twrrPercent != null ? 'TWRR' : 'annualized'}</span>
+					</p>
+				{/if}
 			</div>
 			<div class="bg-surface rounded-xl border border-border p-5">
 				<p class="text-sm text-text-muted mb-1">Total Dividends</p>
@@ -276,6 +282,17 @@
 					<p class="text-xs text-text-muted mt-1">Margin / unrecorded deposits</p>
 				{/if}
 			</div>
+			{#if s.twrrPercent != null}
+				<div class="bg-surface rounded-xl border border-border p-5">
+					<p class="text-sm text-text-muted mb-1" title="Time-Weighted Rate of Return — measures portfolio performance independent of cash flow timing">TWRR</p>
+					<p class="text-2xl font-bold {pnlColor(s.twrrPercent)}">
+						{formatPercent(s.twrrPercent)}
+					</p>
+					{#if s.annualizedReturnPercent != null}
+						<p class="text-xs mt-1.5 text-text-muted">↗ {formatPercent(s.annualizedReturnPercent)}/yr</p>
+					{/if}
+				</div>
+			{/if}
 		</div>
 
 		<!-- Chart -->

@@ -31,7 +31,7 @@ export function pnlColor(value: number): string {
 }
 
 export function pnlBgColor(value: number): string {
-	if (value > 0) return 'bg-green-50 border-green-200';
-	if (value < 0) return 'bg-red-50 border-red-200';
-	return 'bg-gray-50 border-gray-200';
+	if (value > 0) return 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800';
+	if (value < 0) return 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800';
+	return 'bg-gray-50 border-gray-200 dark:bg-gray-900/30 dark:border-gray-700';
 }

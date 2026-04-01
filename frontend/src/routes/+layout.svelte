@@ -3,6 +3,7 @@
 	import Navbar from '$lib/components/Navbar.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { privacyStore } from '$lib/stores/privacy.svelte';
+	import { themeStore } from '$lib/stores/theme.svelte';
 	import { onMount } from 'svelte';
 
 	let { children } = $props();
@@ -10,6 +11,7 @@
 	onMount(() => {
 		authStore.load();
 		privacyStore.init();
+		themeStore.init();
 	});
 </script>
 

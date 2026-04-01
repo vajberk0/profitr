@@ -8,10 +8,10 @@
 	});
 </script>
 
-<div class="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
+<div class="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-indigo-950">
 	<div class="text-center max-w-2xl mx-auto px-4">
 		<h1 class="text-6xl font-bold mb-4">
-			📈 <span class="bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">Profitr</span>
+			📈 <span class="bg-gradient-to-r from-primary to-indigo-400 bg-clip-text text-transparent">Profitr</span>
 		</h1>
 		<p class="text-xl text-text-muted mb-8">
 			Track your stock, ETF & ETC portfolio with real-time multi-currency profit & loss monitoring.

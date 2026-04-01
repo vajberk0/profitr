@@ -42,6 +42,39 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
         var totalPnLPercent = totalCostDisplay != 0 ? (totalPnLDisplay / totalCostDisplay) * 100 : 0;
         var totalDividendsDisplay = positions.Sum(p => p.TotalDividendsDisplay);
 
+        // Compute TWRR and annualized return
+        decimal? twrrPercent = null;
+        decimal? annualizedReturnPercent = null;
+        try
+        {
+            var twrrResult = await CalculateTwrrAsync(portfolio, displayCurrency, transactions, cashTransactions);
+            twrrPercent = twrrResult.Twrr;
+            annualizedReturnPercent = twrrResult.Annualized;
+        }
+        catch
+        {
+            twrrPercent = null;
+            annualizedReturnPercent = null;
+        }
+
+        // Fallback: if TWRR couldn't compute annualized, use simple annualization
+        if (annualizedReturnPercent == null && transactions.Count > 0 && totalCostDisplay != 0)
+        {
+            var firstDate = transactions.Min(t => t.TransactionDate);
+            if (cashTransactions.Count > 0)
+            {
+                var firstCash = cashTransactions.Min(c => c.TransactionDate);
+                if (firstCash < firstDate) firstDate = firstCash;
+            }
+            var totalDaysSimple = (DateTime.UtcNow - firstDate).TotalDays;
+            if (totalDaysSimple >= 30)
+            {
+                var totalReturnDecimal = totalPnLDisplay / totalCostDisplay;
+                if (totalReturnDecimal > -1)
+                    annualizedReturnPercent = ((decimal)Math.Pow((double)(1 + totalReturnDecimal), 365.0 / totalDaysSimple) - 1) * 100;
+            }
+        }
+
         return new PortfolioSummaryDto(
             portfolio.Id,
             portfolio.Name,
@@ -53,7 +86,9 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             totalPnLPercent,
             totalDividendsDisplay,
             cashBalance,
-            positions
+            positions,
+            twrrPercent,
+            annualizedReturnPercent
         );
     }
 
@@ -337,6 +372,66 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
         }
 
         return points;
+    }
+
+    /// <summary>
+    /// Computes Time-Weighted Rate of Return (TWRR) using the daily valuation method.
+    /// TWRR isolates investment performance from the timing of cash flows (deposits/withdrawals).
+    /// </summary>
+    private async Task<(decimal? Twrr, decimal? Annualized)> CalculateTwrrAsync(
+        Portfolio portfolio, string displayCurrency,
+        List<Transaction> transactions, List<CashTransaction> cashTransactions)
+    {
+        var history = await ComputePortfolioHistoryAsync(portfolio, displayCurrency, "all");
+        if (history.Count < 2)
+            return (null, null);
+
+        // Build a map of external cash flows (deposits/withdrawals) by date in display currency
+        var externalFlows = new Dictionary<string, decimal>();
+        foreach (var ct in cashTransactions)
+        {
+            var rate = ct.Currency.Equals(displayCurrency, StringComparison.OrdinalIgnoreCase)
+                ? 1m
+                : await fx.GetHistoricalRateAsync(ct.Currency, displayCurrency, ct.TransactionDate);
+            var amount = ct.Amount * rate;
+            var dateStr = ct.TransactionDate.ToString("yyyy-MM-dd");
+            if (!externalFlows.ContainsKey(dateStr))
+                externalFlows[dateStr] = 0;
+            externalFlows[dateStr] += ct.Type == CashTransactionType.Deposit ? amount : -amount;
+        }
+
+        // Compute TWRR using daily linked returns with cash flow adjustment
+        decimal product = 1m;
+        for (int i = 1; i < history.Count; i++)
+        {
+            var prevValue = history[i - 1].Value;
+            var currValue = history[i].Value;
+            var currDateStr = history[i].Date.ToString("yyyy-MM-dd");
+
+            // External cash flow on the current day
+            externalFlows.TryGetValue(currDateStr, out var cf);
+
+            // Adjusted denominator: previous value + cash flow that arrived today
+            var denominator = prevValue + cf;
+
+            if (denominator > 0 && currValue >= 0)
+            {
+                product *= currValue / denominator;
+            }
+            // Skip days where denominator <= 0 (e.g. full withdrawal)
+        }
+
+        var twrr = (product - 1m) * 100m;
+
+        // Annualize the TWRR
+        var totalDays = (history[^1].Date - history[0].Date).TotalDays;
+        decimal? annualized = null;
+        if (totalDays >= 30 && product > 0)
+        {
+            annualized = ((decimal)Math.Pow((double)product, 365.0 / totalDays) - 1m) * 100m;
+        }
+
+        return (twrr, annualized);
     }
 
     private static DateTime GetEarliestDate(List<Transaction> transactions, List<CashTransaction> cashTransactions)

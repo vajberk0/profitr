@@ -22,7 +22,9 @@ public record PortfolioSummaryDto(
     decimal TotalPnLPercent,
     decimal TotalDividends,
     decimal CashBalance,
-    List<PositionDto> Positions
+    List<PositionDto> Positions,
+    decimal? TwrrPercent = null,
+    decimal? AnnualizedReturnPercent = null
 );
 
 public record PositionDto(

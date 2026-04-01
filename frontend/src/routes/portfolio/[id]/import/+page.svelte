@@ -402,7 +402,7 @@
 							{/if}
 							<span
 								class="font-mono font-semibold text-sm px-2 py-0.5 rounded {mapping.resolved
-									? 'bg-gray-100 text-gray-800'
+									? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
 									: 'bg-amber-100 text-amber-800'}"
 							>
 								{csvSymbol}
@@ -426,7 +426,7 @@
 						<div class="flex-1 space-y-1.5">
 							<!-- Dropdown of suggestions -->
 							<select
-								class="w-full px-3 py-1.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+								class="w-full px-3 py-1.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface"
 								value={currentPick?.symbol ?? ''}
 								onchange={(e) =>
 									onMappingDropdownChange(

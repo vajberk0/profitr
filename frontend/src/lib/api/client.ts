@@ -179,6 +179,8 @@ export interface PortfolioSummary {
 	totalDividends: number;
 	cashBalance: number;
 	positions: Position[];
+	twrrPercent: number | null;
+	annualizedReturnPercent: number | null;
 }
 
 export interface Transaction {
