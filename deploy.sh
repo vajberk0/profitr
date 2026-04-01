@@ -19,4 +19,4 @@ cd ../..
 echo "==> Restarting service..."
 systemctl --user restart profitr
 
-echo "==> Deploy complete!"
+echo "==> Deploy complete!!"
