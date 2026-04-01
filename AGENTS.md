@@ -61,18 +61,12 @@ Profitr is a portfolio tracker web app for stocks, ETFs, and ETCs with multi-cur
 ```
 cd backend/Profitr.Api && dotnet build
 ```
+- Backend URL: http://localhost:5000 (also serves the built frontend from `wwwroot/`)
 
 ### Rebuild frontend into backend wwwroot:
 ```
 cd frontend && npm run build
 ```
-
-### RUN BOTH (does `npm run build` on frontend and `dotnet run` on backend), uses `start` to open new window:
-```
-start runapp.bat
-```
-
-- Backend URL: http://localhost:5000 (also serves the built frontend from `wwwroot/`)
 
 ### Run tests:
 ```
