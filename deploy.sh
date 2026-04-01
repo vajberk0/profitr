@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-cd /home/shipadmin/profitr
+cd ~/profitr
 
 echo "==> Pulling latest code..."
 git pull origin main
