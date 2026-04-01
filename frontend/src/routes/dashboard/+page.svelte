@@ -233,20 +233,20 @@
 		{@const s = portfolioStore.summary}
 
 		<!-- Summary Cards -->
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-			<div class="bg-surface rounded-xl border border-border p-5">
+		<div class="flex flex-wrap gap-4 mb-6">
+			<div class="bg-surface rounded-xl border border-border p-5 flex-1 min-w-[180px]">
 				<p class="text-sm text-text-muted mb-1">Total Value</p>
 				<p class="text-2xl font-bold">
 					{privacyStore.enabled ? '——' : formatCurrency(s.totalValue, s.displayCurrency)}
 				</p>
 			</div>
-			<div class="bg-surface rounded-xl border border-border p-5">
+			<div class="bg-surface rounded-xl border border-border p-5 flex-1 min-w-[180px]">
 				<p class="text-sm text-text-muted mb-1">Cost Basis</p>
 				<p class="text-2xl font-bold">
 					{privacyStore.enabled ? '——' : formatCurrency(s.totalCostBasis, s.displayCurrency)}
 				</p>
 			</div>
-			<div class="rounded-xl border p-5 {pnlBgColor(s.totalPnL)}">
+			<div class="rounded-xl border p-5 flex-1 min-w-[180px] {pnlBgColor(s.totalPnL)}">
 				<p class="text-sm text-text-muted mb-1">Total P&L</p>
 				<p class="text-2xl font-bold {pnlColor(s.totalPnL)}">
 					{#if privacyStore.enabled}
@@ -263,14 +263,8 @@
 					</p>
 				{/if}
 			</div>
-			<div class="bg-surface rounded-xl border border-border p-5">
-				<p class="text-sm text-text-muted mb-1">Total Dividends</p>
-				<p class="text-2xl font-bold">
-					{privacyStore.enabled ? '——' : formatCurrency(s.totalDividends, s.displayCurrency)}
-				</p>
-			</div>
 			<div
-				class="rounded-xl border p-5 {!privacyStore.enabled && s.cashBalance < 0
+				class="rounded-xl border p-5 flex-1 min-w-[180px] {!privacyStore.enabled && s.cashBalance < 0
 					? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
 					: 'bg-surface border-border'}"
 			>
@@ -283,7 +277,7 @@
 				{/if}
 			</div>
 			{#if s.twrrPercent != null}
-				<div class="bg-surface rounded-xl border border-border p-5">
+				<div class="bg-surface rounded-xl border border-border p-5 flex-1 min-w-[180px]">
 					<p class="text-sm text-text-muted mb-1" title="Time-Weighted Rate of Return — measures portfolio performance independent of cash flow timing">TWRR</p>
 					<p class="text-2xl font-bold {pnlColor(s.twrrPercent)}">
 						{formatPercent(s.twrrPercent)}
