@@ -1,20 +1,11 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.HttpOverrides;
 using Profitr.Api.Data;
 using Profitr.Api.Endpoints;
 using Profitr.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Forward headers from reverse proxy (Nginx) so OAuth gets correct https scheme
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
-});
 
 // Database
 builder.Services.AddDbContext<ProfitrDbContext>(options =>
@@ -90,7 +81,17 @@ using (var scope = app.Services.CreateScope())
     await DatabaseMigrator.MigrateAsync(db);
 }
 
-app.UseForwardedHeaders();
+// In production, force HTTPS scheme so OAuth redirect URIs are correct
+// (app runs behind reverse proxy that terminates SSL)
+if (!app.Environment.IsDevelopment())
+{
+    app.Use((context, next) =>
+    {
+        context.Request.Scheme = "https";
+        return next(context);
+    });
+}
+
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
