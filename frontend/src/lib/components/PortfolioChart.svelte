@@ -57,9 +57,12 @@
 
 		const dark = themeStore.isDark;
 
+		// Use parent container height, or fallback to responsive defaults
+		const chartHeight = chartContainer.parentElement?.clientHeight || (window.innerWidth < 640 ? 200 : 300);
+
 		chart = createChart(chartContainer, {
 			width: chartContainer.clientWidth,
-			height: 300,
+			height: chartHeight,
 			layout: {
 				attributionLogo: false,
 				background: { type: ColorType.Solid, color: dark ? '#1e293b' : '#ffffff' },

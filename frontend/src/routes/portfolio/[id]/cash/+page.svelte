@@ -61,16 +61,16 @@
 	<title>Deposit / Withdraw — Profitr</title>
 </svelte:head>
 
-<div class="max-w-2xl mx-auto px-4 py-8">
-	<div class="mb-6">
+<div class="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+	<div class="mb-4 sm:mb-6">
 		<a href="/dashboard" class="text-primary hover:underline text-sm">← Back to Dashboard</a>
-		<h1 class="text-2xl font-bold mt-2">Deposit or Withdraw Cash</h1>
+		<h1 class="text-xl sm:text-2xl font-bold mt-2">Deposit or Withdraw Cash</h1>
 		<p class="text-text-muted text-sm mt-1">
 			Record cash moving into or out of your portfolio.
 		</p>
 	</div>
 
-	<div class="bg-surface rounded-xl border border-border p-6 space-y-6">
+	<div class="bg-surface rounded-xl border border-border p-4 sm:p-6 space-y-5 sm:space-y-6">
 		<!-- Type toggle -->
 		<div>
 			<label class="block text-sm font-medium mb-2">Transaction Type</label>

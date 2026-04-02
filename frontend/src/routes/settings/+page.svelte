@@ -40,8 +40,8 @@
 	<title>Settings — Profitr</title>
 </svelte:head>
 
-<div class="max-w-2xl mx-auto px-4 py-8">
-	<h1 class="text-2xl font-bold mb-6">Settings</h1>
+<div class="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+	<h1 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Settings</h1>
 
 	<!-- Account Info -->
 	<div class="bg-surface rounded-xl border border-border p-6 mb-6">

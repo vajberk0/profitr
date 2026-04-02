@@ -222,7 +222,7 @@
 	<title>Dashboard — Profitr</title>
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
 	{#if portfolioStore.loading && !portfolioStore.summary}
 		<div class="flex items-center justify-center py-24">
 			<div
@@ -233,43 +233,43 @@
 		{@const s = portfolioStore.summary}
 
 		<!-- Summary Cards -->
-		<div class="flex flex-wrap gap-4 mb-6">
-			<div class="bg-surface rounded-xl border border-border p-5 flex-1 min-w-[180px]">
-				<p class="text-sm text-text-muted mb-1">Total Value</p>
-				<p class="text-2xl font-bold">
+		<div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-4 mb-4 sm:mb-6">
+			<div class="bg-surface rounded-xl border border-border p-3 sm:p-5 sm:flex-1 sm:min-w-[180px]">
+				<p class="text-xs sm:text-sm text-text-muted mb-0.5 sm:mb-1">Total Value</p>
+				<p class="text-lg sm:text-2xl font-bold">
 					{privacyStore.enabled ? '——' : formatCurrency(s.totalValue, s.displayCurrency)}
 				</p>
 			</div>
-			<div class="bg-surface rounded-xl border border-border p-5 flex-1 min-w-[180px]">
-				<p class="text-sm text-text-muted mb-1">Cost Basis</p>
-				<p class="text-2xl font-bold">
+			<div class="bg-surface rounded-xl border border-border p-3 sm:p-5 sm:flex-1 sm:min-w-[180px]">
+				<p class="text-xs sm:text-sm text-text-muted mb-0.5 sm:mb-1">Cost Basis</p>
+				<p class="text-lg sm:text-2xl font-bold">
 					{privacyStore.enabled ? '——' : formatCurrency(s.totalCostBasis, s.displayCurrency)}
 				</p>
 			</div>
-			<div class="rounded-xl border p-5 flex-1 min-w-[180px] {pnlBgColor(s.totalPnL)}">
-				<p class="text-sm text-text-muted mb-1">Total P&L</p>
-				<p class="text-2xl font-bold {pnlColor(s.totalPnL)}">
+			<div class="rounded-xl border p-3 sm:p-5 sm:flex-1 sm:min-w-[180px] {pnlBgColor(s.totalPnL)}">
+				<p class="text-xs sm:text-sm text-text-muted mb-0.5 sm:mb-1">Total P&L</p>
+				<p class="text-lg sm:text-2xl font-bold {pnlColor(s.totalPnL)}">
 					{#if privacyStore.enabled}
-						<span class="text-2xl">{formatPercent(s.totalPnLPercent)}</span>
+						<span class="text-lg sm:text-2xl">{formatPercent(s.totalPnLPercent)}</span>
 					{:else}
 						{formatCurrency(s.totalPnL, s.displayCurrency)}
-						<span class="text-base">{formatPercent(s.totalPnLPercent)}</span>
+						<span class="text-sm sm:text-base">{formatPercent(s.totalPnLPercent)}</span>
 					{/if}
 				</p>
 				{#if s.annualizedReturnPercent != null}
-					<p class="text-xs mt-1.5 {pnlColor(s.annualizedReturnPercent)}" title="Time-weighted return annualized to a yearly rate">
+					<p class="text-xs mt-1 sm:mt-1.5 {pnlColor(s.annualizedReturnPercent)}" title="Time-weighted return annualized to a yearly rate">
 						↗ {formatPercent(s.annualizedReturnPercent)}/yr
 						<span class="text-text-muted">{s.twrrPercent != null ? 'TWRR' : 'annualized'}</span>
 					</p>
 				{/if}
 			</div>
 			<div
-				class="rounded-xl border p-5 flex-1 min-w-[180px] {!privacyStore.enabled && s.cashBalance < 0
+				class="rounded-xl border p-3 sm:p-5 sm:flex-1 sm:min-w-[180px] {!privacyStore.enabled && s.cashBalance < 0
 					? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
 					: 'bg-surface border-border'}"
 			>
-				<p class="text-sm text-text-muted mb-1">Cash Balance</p>
-				<p class="text-2xl font-bold {privacyStore.enabled ? '' : pnlColor(s.cashBalance)}">
+				<p class="text-xs sm:text-sm text-text-muted mb-0.5 sm:mb-1">Cash Balance</p>
+				<p class="text-lg sm:text-2xl font-bold {privacyStore.enabled ? '' : pnlColor(s.cashBalance)}">
 					{privacyStore.enabled ? '——' : formatCurrency(s.cashBalance, s.displayCurrency)}
 				</p>
 				{#if !privacyStore.enabled && s.cashBalance < 0}
@@ -277,25 +277,25 @@
 				{/if}
 			</div>
 			{#if s.twrrPercent != null}
-				<div class="bg-surface rounded-xl border border-border p-5 flex-1 min-w-[180px]">
-					<p class="text-sm text-text-muted mb-1" title="Time-Weighted Rate of Return — measures portfolio performance independent of cash flow timing">TWRR</p>
-					<p class="text-2xl font-bold {pnlColor(s.twrrPercent)}">
+				<div class="col-span-2 bg-surface rounded-xl border border-border p-3 sm:p-5 sm:flex-1 sm:min-w-[180px]">
+					<p class="text-xs sm:text-sm text-text-muted mb-0.5 sm:mb-1" title="Time-Weighted Rate of Return — measures portfolio performance independent of cash flow timing">TWRR</p>
+					<p class="text-lg sm:text-2xl font-bold {pnlColor(s.twrrPercent)}">
 						{formatPercent(s.twrrPercent)}
 					</p>
 					{#if s.annualizedReturnPercent != null}
-						<p class="text-xs mt-1.5 text-text-muted">↗ {formatPercent(s.annualizedReturnPercent)}/yr</p>
+						<p class="text-xs mt-1 sm:mt-1.5 text-text-muted">↗ {formatPercent(s.annualizedReturnPercent)}/yr</p>
 					{/if}
 				</div>
 			{/if}
 		</div>
 
 		<!-- Chart -->
-		<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+		<div class="bg-surface rounded-xl border border-border p-3 sm:p-5 mb-4 sm:mb-6">
 			<!-- Chart header: title + badges + compare search + range buttons -->
-			<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+			<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 sm:mb-4 gap-2 sm:gap-3">
 				<!-- Left: title + position badges + comparison badges -->
 				<div class="flex items-center gap-2 flex-wrap min-w-0">
-					<h2 class="text-lg font-semibold whitespace-nowrap">{chartLabel}</h2>
+					<h2 class="text-sm sm:text-lg font-semibold whitespace-nowrap">{chartLabel}</h2>
 
 					{#if selectedSymbols.length > 0}
 						<div class="flex items-center gap-1.5 flex-wrap">
@@ -348,13 +348,15 @@
 				<!-- Right: compare search + range buttons -->
 				<div class="flex items-center gap-2 flex-shrink-0">
 					{#if comparisonSymbols.length < COMPARISON_COLORS.length}
-						<CompareSearch onselect={(r) => addComparisonSymbol(r)} />
+						<div class="hidden sm:block">
+							<CompareSearch onselect={(r) => addComparisonSymbol(r)} />
+						</div>
 					{/if}
-					<div class="flex gap-1">
+					<div class="flex gap-0.5 sm:gap-1">
 						{#each ranges as r}
 							<button
 								onclick={() => handleRangeChange(r)}
-								class="px-3 py-1 text-xs font-medium rounded-md transition-colors {portfolioStore.historyRange ===
+								class="px-2 sm:px-3 py-1 text-xs font-medium rounded-md transition-colors {portfolioStore.historyRange ===
 								r
 									? 'bg-primary text-white'
 									: 'text-text-muted hover:bg-surface-alt'}"
@@ -365,22 +367,30 @@
 					</div>
 				</div>
 			</div>
+			<!-- Mobile compare search (below chart header) -->
+			{#if comparisonSymbols.length < COMPARISON_COLORS.length}
+				<div class="sm:hidden mb-2">
+					<CompareSearch onselect={(r) => addComparisonSymbol(r)} />
+				</div>
+			{/if}
 
 			{#if positionChartLoading || comparisonLoading && chartData.length === 0}
-				<div class="h-[300px] flex items-center justify-center">
+				<div class="h-[200px] sm:h-[300px] flex items-center justify-center">
 					<div
 						class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"
 					></div>
 				</div>
 			{:else if chartData.length > 0}
-				<PortfolioChart
-					data={chartData}
-					currency={s.displayCurrency}
-					percentageMode={privacyStore.enabled}
-					{comparisonSeries}
-				/>
+				<div class="h-[200px] sm:h-[300px]">
+					<PortfolioChart
+						data={chartData}
+						currency={s.displayCurrency}
+						percentageMode={privacyStore.enabled}
+						{comparisonSeries}
+					/>
+				</div>
 			{:else}
-				<div class="h-[300px] flex items-center justify-center text-text-muted">
+				<div class="h-[200px] sm:h-[300px] flex items-center justify-center text-text-muted text-sm">
 					{selectedSymbols.length > 0
 						? 'No chart data available for the selected positions.'
 						: 'Not enough data for chart. Add transactions to get started.'}
@@ -390,10 +400,11 @@
 
 		<!-- Tabs -->
 		<div class="bg-surface rounded-xl border border-border">
-			<div class="flex border-b border-border">
+			<!-- Tab buttons — horizontally scrollable on mobile -->
+			<div class="flex border-b border-border overflow-x-auto scrollbar-hide">
 				<button
 					onclick={() => (activeTab = 'positions')}
-					class="px-5 py-3 text-sm font-medium border-b-2 transition-colors {activeTab ===
+					class="px-3 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap {activeTab ===
 					'positions'
 						? 'border-primary text-primary'
 						: 'border-transparent text-text-muted hover:text-text'}"
@@ -402,25 +413,27 @@
 				</button>
 				<button
 					onclick={() => (activeTab = 'transactions')}
-					class="px-5 py-3 text-sm font-medium border-b-2 transition-colors {activeTab ===
+					class="px-3 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap {activeTab ===
 					'transactions'
 						? 'border-primary text-primary'
 						: 'border-transparent text-text-muted hover:text-text'}"
 				>
-					Transactions ({portfolioStore.transactions.length})
+					<span class="sm:hidden">Txns ({portfolioStore.transactions.length})</span>
+					<span class="hidden sm:inline">Transactions ({portfolioStore.transactions.length})</span>
 				</button>
 				<button
 					onclick={() => (activeTab = 'dividends')}
-					class="px-5 py-3 text-sm font-medium border-b-2 transition-colors {activeTab ===
+					class="px-3 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap {activeTab ===
 					'dividends'
 						? 'border-primary text-primary'
 						: 'border-transparent text-text-muted hover:text-text'}"
 				>
-					Dividends ({portfolioStore.dividendsList.length})
+					<span class="sm:hidden">Divs ({portfolioStore.dividendsList.length})</span>
+					<span class="hidden sm:inline">Dividends ({portfolioStore.dividendsList.length})</span>
 				</button>
 				<button
 					onclick={() => (activeTab = 'cash')}
-					class="px-5 py-3 text-sm font-medium border-b-2 transition-colors {activeTab ===
+					class="px-3 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap {activeTab ===
 					'cash'
 						? 'border-primary text-primary'
 						: 'border-transparent text-text-muted hover:text-text'}"
@@ -428,10 +441,10 @@
 					Cash ({portfolioStore.cashTransactions.length})
 				</button>
 
-				<div class="flex-1"></div>
-
+				<!-- Desktop action buttons -->
+				<div class="hidden lg:flex flex-1"></div>
 				{#if portfolioStore.activePortfolio}
-					<div class="flex items-center gap-2 px-4">
+					<div class="hidden lg:flex items-center gap-2 px-4">
 						<a
 							href="/portfolio/{portfolioStore.activePortfolio.id}/import"
 							class="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-surface-alt transition-colors"
@@ -460,7 +473,37 @@
 				{/if}
 			</div>
 
-			<div class="p-4">
+			<!-- Mobile action buttons — shown below tabs -->
+			{#if portfolioStore.activePortfolio}
+				<div class="lg:hidden flex gap-2 px-3 py-2 border-b border-border overflow-x-auto scrollbar-hide">
+					<a
+						href="/portfolio/{portfolioStore.activePortfolio.id}/add"
+						class="px-3 py-1.5 text-xs sm:text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors whitespace-nowrap flex-shrink-0"
+					>
+						+ Transaction
+					</a>
+					<a
+						href="/portfolio/{portfolioStore.activePortfolio.id}/dividend"
+						class="px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg hover:bg-surface-alt transition-colors whitespace-nowrap flex-shrink-0"
+					>
+						+ Dividend
+					</a>
+					<a
+						href="/portfolio/{portfolioStore.activePortfolio.id}/cash"
+						class="px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg hover:bg-surface-alt transition-colors whitespace-nowrap flex-shrink-0"
+					>
+						💰 Cash
+					</a>
+					<a
+						href="/portfolio/{portfolioStore.activePortfolio.id}/import"
+						class="px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg hover:bg-surface-alt transition-colors whitespace-nowrap flex-shrink-0"
+					>
+						↑ Import
+					</a>
+				</div>
+			{/if}
+
+			<div class="p-3 sm:p-4">
 				{#if activeTab === 'positions'}
 					<PositionsTable
 						positions={s.positions}
@@ -475,7 +518,26 @@
 					{#if portfolioStore.dividendsList.length === 0}
 						<p class="text-text-muted text-center py-8">No dividends recorded.</p>
 					{:else}
-						<div class="overflow-x-auto">
+						<!-- Mobile cards -->
+						<div class="sm:hidden space-y-2">
+							{#each portfolioStore.dividendsList as d}
+								<div class="rounded-lg border border-border p-3">
+									<div class="flex items-center justify-between mb-1">
+										<span class="font-semibold text-sm">{d.symbol}</span>
+										<span class="font-medium text-sm">{formatCurrency(d.amountPerShare, d.nativeCurrency)}/share</span>
+									</div>
+									<div class="flex items-center justify-between text-xs text-text-muted">
+										<span>Ex: {new Date(d.exDate).toLocaleDateString()}</span>
+										<span>Pay: {new Date(d.payDate).toLocaleDateString()}</span>
+									</div>
+									{#if d.notes}
+										<p class="text-xs text-text-muted mt-1 truncate">{d.notes}</p>
+									{/if}
+								</div>
+							{/each}
+						</div>
+						<!-- Desktop table -->
+						<div class="hidden sm:block overflow-x-auto">
 							<table class="w-full text-sm">
 								<thead>
 									<tr class="border-b border-border text-text-muted text-left">
@@ -491,19 +553,11 @@
 									{#each portfolioStore.dividendsList as d}
 										<tr class="border-b border-border hover:bg-surface-alt">
 											<td class="py-2 px-3 font-medium">{d.symbol}</td>
-											<td class="py-2 px-3 text-right"
-												>{formatCurrency(d.amountPerShare, d.nativeCurrency)}</td
-											>
+											<td class="py-2 px-3 text-right">{formatCurrency(d.amountPerShare, d.nativeCurrency)}</td>
 											<td class="py-2 px-3 text-text-muted">{d.nativeCurrency}</td>
-											<td class="py-2 px-3"
-												>{new Date(d.exDate).toLocaleDateString()}</td
-											>
-											<td class="py-2 px-3"
-												>{new Date(d.payDate).toLocaleDateString()}</td
-											>
-											<td class="py-2 px-3 text-text-muted text-xs"
-												>{d.notes || ''}</td
-											>
+											<td class="py-2 px-3">{new Date(d.exDate).toLocaleDateString()}</td>
+											<td class="py-2 px-3">{new Date(d.payDate).toLocaleDateString()}</td>
+											<td class="py-2 px-3 text-text-muted text-xs">{d.notes || ''}</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -516,7 +570,47 @@
 							No cash deposits or withdrawals recorded.
 						</p>
 					{:else}
-						<div class="overflow-x-auto">
+						<!-- Mobile cards -->
+						<div class="sm:hidden space-y-2">
+							{#each portfolioStore.cashTransactions as ct}
+								<div class="rounded-lg border border-border p-3">
+									<div class="flex items-center justify-between mb-1">
+										<span
+											class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {ct.type ===
+											'Deposit'
+												? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+												: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}"
+										>
+											{ct.type === 'Deposit' ? '↓ Deposit' : '↑ Withdrawal'}
+										</span>
+										<button
+											onclick={async () => {
+												if (confirm('Delete this cash transaction?')) {
+													await (await import('$lib/api/client')).cash.delete(ct.id);
+													await portfolioStore.loadAll();
+												}
+											}}
+											class="text-text-muted hover:text-danger text-xs p-1"
+										>
+											✕
+										</button>
+									</div>
+									<div class="flex items-center justify-between">
+										<span class="text-xs text-text-muted">{new Date(ct.transactionDate).toLocaleDateString()}</span>
+										<span class="font-medium text-sm {ct.type === 'Deposit'
+											? 'text-green-600 dark:text-green-400'
+											: 'text-red-600 dark:text-red-400'}">
+											{ct.type === 'Deposit' ? '+' : '−'}{formatCurrency(ct.amount, ct.currency)}
+										</span>
+									</div>
+									{#if ct.notes}
+										<p class="text-xs text-text-muted mt-1 truncate">{ct.notes}</p>
+									{/if}
+								</div>
+							{/each}
+						</div>
+						<!-- Desktop table -->
+						<div class="hidden sm:block overflow-x-auto">
 							<table class="w-full text-sm">
 								<thead>
 									<tr class="border-b border-border text-text-muted text-left">
@@ -546,18 +640,11 @@
 													? 'text-green-600 dark:text-green-400'
 													: 'text-red-600 dark:text-red-400'}"
 											>
-												{ct.type === 'Deposit' ? '+' : '−'}{formatCurrency(
-													ct.amount,
-													ct.currency
-												)}
+												{ct.type === 'Deposit' ? '+' : '−'}{formatCurrency(ct.amount, ct.currency)}
 											</td>
 											<td class="py-2 px-3 text-text-muted">{ct.currency}</td>
-											<td class="py-2 px-3"
-												>{new Date(ct.transactionDate).toLocaleDateString()}</td
-											>
-											<td class="py-2 px-3 text-text-muted text-xs"
-												>{ct.notes || ''}</td
-											>
+											<td class="py-2 px-3">{new Date(ct.transactionDate).toLocaleDateString()}</td>
+											<td class="py-2 px-3 text-text-muted text-xs">{ct.notes || ''}</td>
 											<td class="py-2 px-3">
 												<button
 													onclick={async () => {

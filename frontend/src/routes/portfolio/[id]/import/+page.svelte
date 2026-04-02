@@ -262,10 +262,10 @@
 	<title>Import Transactions — Profitr</title>
 </svelte:head>
 
-<div class="max-w-5xl mx-auto px-4 py-8">
-	<div class="mb-6">
+<div class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+	<div class="mb-4 sm:mb-6">
 		<a href="/dashboard" class="text-primary hover:underline text-sm">← Back to Dashboard</a>
-		<h1 class="text-2xl font-bold mt-2">Import Transactions</h1>
+		<h1 class="text-xl sm:text-2xl font-bold mt-2">Import Transactions</h1>
 		<p class="text-text-muted text-sm mt-1">
 			Import transactions from an IBKR Transaction History CSV export.
 		</p>

@@ -37,7 +37,77 @@
 		<p class="text-sm">Add your first transaction to get started.</p>
 	</div>
 {:else}
-	<div class="overflow-x-auto">
+	<!-- Mobile card layout -->
+	<div class="sm:hidden space-y-2">
+		{#each positions as p}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="rounded-lg border p-3 transition-colors cursor-pointer select-none
+					{selectedSymbols.includes(p.symbol)
+						? 'bg-primary/10 border-primary/30'
+						: 'border-border hover:bg-surface-alt'}"
+				onclick={() => toggleSymbol(p.symbol)}
+				onkeydown={() => {}}
+			>
+				<!-- Top row: symbol + type + P&L % -->
+				<div class="flex items-center justify-between mb-2">
+					<div class="flex items-center gap-2 min-w-0">
+						<a
+							href="https://finance.yahoo.com/quote/{p.symbol}"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="font-semibold text-accent hover:underline"
+							onclick={(e) => e.stopPropagation()}>{p.symbol}</a>
+						<span
+							class="text-[10px] px-1.5 py-0.5 rounded {resolveAssetType(p.assetType, p.instrumentName) === 'ETF'
+								? 'bg-purple-100 text-purple-700'
+								: resolveAssetType(p.assetType, p.instrumentName) === 'ETC'
+									? 'bg-amber-100 text-amber-700'
+									: 'bg-blue-100 text-blue-700'}">{resolveAssetType(p.assetType, p.instrumentName)}</span>
+					</div>
+					<span class="font-semibold text-sm {pnlColor(p.pnLPercentDisplay)}">
+						{formatPercent(p.pnLPercentDisplay)}
+					</span>
+				</div>
+
+				<!-- Name -->
+				<p class="text-xs text-text-muted truncate mb-2">{p.instrumentName}</p>
+
+				<!-- Bottom row: price info -->
+				<div class="flex items-center justify-between text-xs">
+					<div class="flex items-center gap-3">
+						<span class="text-text-muted">
+							{formatCurrency(p.currentPrice, p.nativeCurrency)}
+						</span>
+						{#if !privacyMode}
+							<span class="text-text-muted">
+								×{formatQuantity(p.quantity)}
+							</span>
+						{/if}
+					</div>
+					<div class="flex items-center gap-3">
+						{#if !privacyMode}
+							<span class="font-medium">
+								{formatCurrency(p.currentValueDisplay, displayCurrency)}
+							</span>
+							<span class="font-semibold {pnlColor(p.pnLDisplay)}">
+								{formatCurrency(p.pnLDisplay, displayCurrency)}
+							</span>
+						{/if}
+					</div>
+				</div>
+
+				{#if !privacyMode && p.totalDividendsDisplay > 0}
+					<div class="mt-1.5 text-xs text-text-muted">
+						Dividends: {formatCurrency(p.totalDividendsDisplay, displayCurrency)}
+					</div>
+				{/if}
+			</div>
+		{/each}
+	</div>
+
+	<!-- Desktop table layout -->
+	<div class="hidden sm:block overflow-x-auto">
 		<table class="w-full text-sm">
 			<thead>
 				<tr class="border-b border-border text-text-muted text-left">

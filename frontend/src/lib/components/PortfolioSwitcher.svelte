@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { portfolioStore } from '$lib/stores/portfolio.svelte';
 
+	let { onswitch }: { onswitch?: () => void } = $props();
+
 	let open = $state(false);
 	let newName = $state('');
 	let creating = $state(false);
@@ -8,6 +10,7 @@
 	async function switchTo(id: string) {
 		await portfolioStore.switchPortfolio(id);
 		open = false;
+		onswitch?.();
 	}
 
 	async function createNew() {

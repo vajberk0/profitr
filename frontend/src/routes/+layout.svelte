@@ -21,7 +21,7 @@
 	</div>
 {:else}
 	<Navbar />
-	<main class="min-h-[calc(100vh-64px)]">
+	<main class="min-h-[calc(100vh-56px)] sm:min-h-[calc(100vh-64px)]">
 		{@render children()}
 	</main>
 {/if}
