@@ -72,7 +72,7 @@ public class FxService(IFxRateProvider provider, ProfitrDbContext db, IMemoryCac
 
         if (dbRate.HasValue)
         {
-            cache.Set(cacheKey, dbRate.Value, TimeSpan.FromHours(24));
+            cache.Set(cacheKey, dbRate.Value, TimeSpan.FromHours(1));
             return dbRate.Value;
         }
 
@@ -80,7 +80,7 @@ public class FxService(IFxRateProvider provider, ProfitrDbContext db, IMemoryCac
         var rate = await provider.GetHistoricalRateAsync(from, to, date);
         if (rate.HasValue)
         {
-            cache.Set(cacheKey, rate.Value, TimeSpan.FromHours(24));
+            cache.Set(cacheKey, rate.Value, TimeSpan.FromHours(1));
             await UpsertRateAsync(from, to, dbDate, rate.Value);
             return rate.Value;
         }

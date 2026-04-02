@@ -135,7 +135,7 @@ public class YahooFinanceService(HttpClient httpClient, IMemoryCache cache, ILog
             }
 
             var chartResult = new ChartResult(symbol.ToUpper(), currency, points);
-            cache.Set(cacheKey, chartResult, TimeSpan.FromHours(range == "1d" ? 0.016 : 24)); // 1min for 1d, 24h for others
+            cache.Set(cacheKey, chartResult, TimeSpan.FromHours(range == "1d" ? 0.016 : 1)); // 1min for 1d, 1h for others
             return chartResult;
         }
         catch (Exception ex)
@@ -173,7 +173,7 @@ public class YahooFinanceService(HttpClient httpClient, IMemoryCache cache, ILog
                 if (closes[i].ValueKind != JsonValueKind.Null)
                 {
                     var hp = new HistoryPriceResult(symbol.ToUpper(), date, closes[i].GetDecimal(), currency);
-                    cache.Set(cacheKey, hp, TimeSpan.FromHours(24));
+                    cache.Set(cacheKey, hp, TimeSpan.FromHours(1));
                     return hp;
                 }
             }
