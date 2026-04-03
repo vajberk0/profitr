@@ -387,6 +387,7 @@
 						currency={s.displayCurrency}
 						percentageMode={privacyStore.enabled}
 						{comparisonSeries}
+						hourly={portfolioStore.historyRange === '1w'}
 					/>
 				</div>
 			{:else}

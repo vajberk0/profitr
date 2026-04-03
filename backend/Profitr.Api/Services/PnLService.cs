@@ -274,14 +274,17 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             };
         }
 
+        var isHourly = range == "1w";
+        var chartInterval = isHourly ? "1h" : "1d";
+
         var charts = new Dictionary<string, ChartResult>();
         foreach (var symbol in symbols)
         {
-            var chart = await yahoo.GetChartAsync(symbol, chartRange);
+            var chart = await yahoo.GetChartAsync(symbol, chartRange, chartInterval);
             if (chart != null) charts[symbol] = chart;
         }
 
-        // Build daily portfolio values
+        // Build portfolio values (hourly for 1w, daily for other ranges)
         var points = new List<ChartDataPoint>();
         var endDate = DateTime.UtcNow.Date;
 
@@ -323,73 +326,143 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
             return closestDate != null ? rates[closestDate] : 1m;
         }
 
-        // For each day in range, compute portfolio value
-        for (var date = startDate.Date; date <= endDate; date = date.AddDays(1))
+        if (isHourly)
         {
-            if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday) continue;
+            // For 1w range, emit one point per hourly chart timestamp for smoother data
+            // Collect all unique hourly timestamps from all symbols' charts
+            var hourlyTimestamps = charts.Values
+                .SelectMany(c => c.Points.Select(p => p.Date))
+                .Where(d => d >= startDate)
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
 
-            var dateStr = date.ToString("yyyy-MM-dd");
-            decimal totalValue = 0;
-
-            // Compute holdings as of this date
-            var holdingsAtDate = transactions
-                .Where(t => t.TransactionDate.Date <= date)
-                .GroupBy(t => t.Symbol)
-                .Select(g => new
-                {
-                    Symbol = g.Key,
-                    NativeCurrency = g.First().NativeCurrency,
-                    Quantity = g.Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity)
-                })
-                .Where(h => h.Quantity > 0);
-
-            foreach (var holding in holdingsAtDate)
+            foreach (var timestamp in hourlyTimestamps)
             {
-                // Find price on this date from chart data
-                // Fall back to first available point when no earlier data exists
-                // (handles holidays/gaps at the start of the chart range)
-                decimal price = 0;
-                if (charts.TryGetValue(holding.Symbol, out var chart))
+                var dateStr = timestamp.ToString("yyyy-MM-dd");
+                decimal totalValue = 0;
+
+                var holdingsAtDate = transactions
+                    .Where(t => t.TransactionDate.Date <= timestamp.Date)
+                    .GroupBy(t => t.Symbol)
+                    .Select(g => new
+                    {
+                        Symbol = g.Key,
+                        NativeCurrency = g.First().NativeCurrency,
+                        Quantity = g.Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity)
+                    })
+                    .Where(h => h.Quantity > 0);
+
+                foreach (var holding in holdingsAtDate)
                 {
-                    var point = chart.Points.LastOrDefault(p => p.Date.Date <= date)
-                                ?? chart.Points.FirstOrDefault();
-                    if (point != null) price = point.Close;
+                    decimal price = 0;
+                    if (charts.TryGetValue(holding.Symbol, out var chart))
+                    {
+                        var point = chart.Points.LastOrDefault(p => p.Date <= timestamp)
+                                    ?? chart.Points.FirstOrDefault();
+                        if (point != null) price = point.Close;
+                    }
+
+                    var valueNative = holding.Quantity * price;
+                    totalValue += valueNative * GetFxRateForDate(holding.NativeCurrency, dateStr);
                 }
 
-                var valueNative = holding.Quantity * price;
-                totalValue += valueNative * GetFxRateForDate(holding.NativeCurrency, dateStr);
-            }
-
-            // Compute cash balance as of this date (deposits - withdrawals - buys + sells + dividends)
-            decimal cashAtDate = 0;
-
-            foreach (var ct in cashTransactions.Where(c => c.TransactionDate.Date <= date))
-            {
-                var amount = ct.Amount * GetFxRateForDate(ct.Currency, ct.TransactionDate.ToString("yyyy-MM-dd"));
-                cashAtDate += ct.Type == CashTransactionType.Deposit ? amount : -amount;
-            }
-
-            foreach (var txn in transactions.Where(t => t.TransactionDate.Date <= date))
-            {
-                var amount = txn.Quantity * txn.PricePerUnit * GetFxRateForDate(txn.NativeCurrency, txn.TransactionDate.ToString("yyyy-MM-dd"));
-                cashAtDate += txn.Type == TransactionType.Buy ? -amount : amount;
-            }
-
-            foreach (var div in dividends.Where(d => d.PayDate.Date <= date))
-            {
-                var qtyAtExDate = transactions
-                    .Where(t => t.Symbol == div.Symbol && t.TransactionDate.Date <= div.ExDate.Date)
-                    .Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity);
-                if (qtyAtExDate > 0)
+                // Cash balance as of this timestamp's date
+                decimal cashAtDate = 0;
+                foreach (var ct in cashTransactions.Where(c => c.TransactionDate.Date <= timestamp.Date))
                 {
-                    cashAtDate += div.AmountPerShare * qtyAtExDate * GetFxRateForDate(div.NativeCurrency, div.PayDate.ToString("yyyy-MM-dd"));
+                    var amount = ct.Amount * GetFxRateForDate(ct.Currency, ct.TransactionDate.ToString("yyyy-MM-dd"));
+                    cashAtDate += ct.Type == CashTransactionType.Deposit ? amount : -amount;
                 }
+                foreach (var txn in transactions.Where(t => t.TransactionDate.Date <= timestamp.Date))
+                {
+                    var amount = txn.Quantity * txn.PricePerUnit * GetFxRateForDate(txn.NativeCurrency, txn.TransactionDate.ToString("yyyy-MM-dd"));
+                    cashAtDate += txn.Type == TransactionType.Buy ? -amount : amount;
+                }
+                foreach (var div in dividends.Where(d => d.PayDate.Date <= timestamp.Date))
+                {
+                    var qtyAtExDate = transactions
+                        .Where(t => t.Symbol == div.Symbol && t.TransactionDate.Date <= div.ExDate.Date)
+                        .Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity);
+                    if (qtyAtExDate > 0)
+                        cashAtDate += div.AmountPerShare * qtyAtExDate * GetFxRateForDate(div.NativeCurrency, div.PayDate.ToString("yyyy-MM-dd"));
+                }
+
+                totalValue += cashAtDate;
+                if (totalValue != 0)
+                    points.Add(new ChartDataPoint(timestamp, totalValue));
             }
+        }
+        else
+        {
+            // For all other ranges, compute one point per trading day
+            for (var date = startDate.Date; date <= endDate; date = date.AddDays(1))
+            {
+                if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday) continue;
 
-            totalValue += cashAtDate;
+                var dateStr = date.ToString("yyyy-MM-dd");
+                decimal totalValue = 0;
 
-            if (totalValue != 0)
-                points.Add(new ChartDataPoint(date, totalValue));
+                // Compute holdings as of this date
+                var holdingsAtDate = transactions
+                    .Where(t => t.TransactionDate.Date <= date)
+                    .GroupBy(t => t.Symbol)
+                    .Select(g => new
+                    {
+                        Symbol = g.Key,
+                        NativeCurrency = g.First().NativeCurrency,
+                        Quantity = g.Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity)
+                    })
+                    .Where(h => h.Quantity > 0);
+
+                foreach (var holding in holdingsAtDate)
+                {
+                    // Find price on this date from chart data
+                    // Fall back to first available point when no earlier data exists
+                    // (handles holidays/gaps at the start of the chart range)
+                    decimal price = 0;
+                    if (charts.TryGetValue(holding.Symbol, out var chart))
+                    {
+                        var point = chart.Points.LastOrDefault(p => p.Date.Date <= date)
+                                    ?? chart.Points.FirstOrDefault();
+                        if (point != null) price = point.Close;
+                    }
+
+                    var valueNative = holding.Quantity * price;
+                    totalValue += valueNative * GetFxRateForDate(holding.NativeCurrency, dateStr);
+                }
+
+                // Compute cash balance as of this date (deposits - withdrawals - buys + sells + dividends)
+                decimal cashAtDate = 0;
+
+                foreach (var ct in cashTransactions.Where(c => c.TransactionDate.Date <= date))
+                {
+                    var amount = ct.Amount * GetFxRateForDate(ct.Currency, ct.TransactionDate.ToString("yyyy-MM-dd"));
+                    cashAtDate += ct.Type == CashTransactionType.Deposit ? amount : -amount;
+                }
+
+                foreach (var txn in transactions.Where(t => t.TransactionDate.Date <= date))
+                {
+                    var amount = txn.Quantity * txn.PricePerUnit * GetFxRateForDate(txn.NativeCurrency, txn.TransactionDate.ToString("yyyy-MM-dd"));
+                    cashAtDate += txn.Type == TransactionType.Buy ? -amount : amount;
+                }
+
+                foreach (var div in dividends.Where(d => d.PayDate.Date <= date))
+                {
+                    var qtyAtExDate = transactions
+                        .Where(t => t.Symbol == div.Symbol && t.TransactionDate.Date <= div.ExDate.Date)
+                        .Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity);
+                    if (qtyAtExDate > 0)
+                    {
+                        cashAtDate += div.AmountPerShare * qtyAtExDate * GetFxRateForDate(div.NativeCurrency, div.PayDate.ToString("yyyy-MM-dd"));
+                    }
+                }
+
+                totalValue += cashAtDate;
+
+                if (totalValue != 0)
+                    points.Add(new ChartDataPoint(date, totalValue));
+            }
         }
 
         return points;

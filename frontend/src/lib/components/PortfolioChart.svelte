@@ -14,12 +14,14 @@
 		data,
 		currency,
 		percentageMode = false,
-		comparisonSeries = []
+		comparisonSeries = [],
+		hourly = false
 	}: {
 		data: ChartDataPoint[];
 		currency: string;
 		percentageMode?: boolean;
 		comparisonSeries?: ComparisonSeries[];
+		hourly?: boolean;
 	} = $props();
 
 	let chartContainer: HTMLDivElement;
@@ -29,14 +31,22 @@
 	 * Convert raw data points to chart-ready {time, value} pairs.
 	 * When asPercent is true, values are normalised to % growth from the first point.
 	 */
+	function toTime(dateStr: string): string | number {
+		if (hourly) {
+			// lightweight-charts needs a UTC Unix timestamp for time-based data
+			return Math.floor(new Date(dateStr).getTime() / 1000);
+		}
+		return dateStr.split('T')[0];
+	}
+
 	function toChartPoints(raw: ChartDataPoint[], asPercent: boolean) {
 		const filtered = raw.filter((d) => d.value > 0);
 		if (!asPercent || filtered.length === 0) {
-			return filtered.map((d) => ({ time: d.date.split('T')[0] as string, value: d.value }));
+			return filtered.map((d) => ({ time: toTime(d.date), value: d.value }));
 		}
 		const baseline = filtered[0].value;
 		return filtered.map((d) => ({
-			time: d.date.split('T')[0] as string,
+			time: toTime(d.date),
 			value: ((d.value / baseline) - 1) * 100
 		}));
 	}
@@ -78,7 +88,8 @@
 			},
 			timeScale: {
 				borderColor: dark ? '#334155' : '#e2e8f0',
-				timeVisible: false
+				timeVisible: hourly,
+				secondVisible: false
 			},
 			crosshair: {
 				vertLine: { labelBackgroundColor: '#2563eb' },
@@ -141,6 +152,7 @@
 		data;
 		percentageMode;
 		comparisonSeries;
+		hourly;
 		themeStore.isDark;
 		if (chartContainer) buildChart();
 	});
