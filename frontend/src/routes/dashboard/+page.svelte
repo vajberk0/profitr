@@ -104,10 +104,12 @@
 		try {
 			const displayCurrency = portfolioStore.summary.displayCurrency;
 			const yahooRange = rangeMap[portfolioStore.historyRange] || '1y';
+			const isHourly = portfolioStore.historyRange === '1w';
+			const yahooInterval = isHourly ? '1h' : '1d';
 
 			const results = await Promise.all(
 				comparisonSymbols.map(async (sym) => {
-					const chartResult = await market.chart(sym, yahooRange);
+					const chartResult = await market.chart(sym, yahooRange, yahooInterval);
 					if (!chartResult?.points?.length) return { symbol: sym, data: [] as ChartDataPoint[] };
 
 					let fxRate = 1;
@@ -121,7 +123,7 @@
 					}
 
 					const data: ChartDataPoint[] = chartResult.points.map((p) => ({
-						date: p.date.split('T')[0],
+						date: isHourly ? p.date : p.date.split('T')[0],
 						value: p.close * fxRate
 					}));
 					return { symbol: sym, data };
@@ -141,6 +143,8 @@
 		try {
 			const displayCurrency = portfolioStore.summary.displayCurrency;
 			const yahooRange = rangeMap[portfolioStore.historyRange] || '1y';
+			const isHourly = portfolioStore.historyRange === '1w';
+			const yahooInterval = isHourly ? '1h' : '1d';
 
 			const positions = portfolioStore.summary.positions.filter((p) =>
 				selectedSymbols.includes(p.symbol)
@@ -152,7 +156,7 @@
 
 			// Fetch chart data and FX rates in parallel
 			const [charts, rates] = await Promise.all([
-				Promise.all(positions.map((p) => market.chart(p.symbol, yahooRange))),
+				Promise.all(positions.map((p) => market.chart(p.symbol, yahooRange, yahooInterval))),
 				Promise.all(
 					positions.map((p) =>
 						p.nativeCurrency === displayCurrency
@@ -162,27 +166,27 @@
 				)
 			]);
 
-			// Build per-position date→value maps
+			// Build per-position timestamp→value maps
 			const positionMaps: Map<string, number>[] = positions.map((pos, i) => {
 				const map = new Map<string, number>();
 				const chartResult = charts[i];
 				const fxRate = rates[i];
 				if (!chartResult?.points) return map;
 				for (const point of chartResult.points) {
-					const date = point.date.split('T')[0];
-					map.set(date, point.close * pos.quantity * fxRate);
+					const key = isHourly ? point.date : point.date.split('T')[0];
+					map.set(key, point.close * pos.quantity * fxRate);
 				}
 				return map;
 			});
 
-			// Collect all dates and sort
+			// Collect all timestamps and sort
 			const allDates = new Set<string>();
 			for (const map of positionMaps) {
 				for (const date of map.keys()) allDates.add(date);
 			}
 			const sortedDates = [...allDates].sort();
 
-			// Sum values per date with forward-fill for missing dates
+			// Sum values per timestamp with forward-fill for missing entries
 			const lastValues = new Array(positions.length).fill(0);
 			positionChartData = sortedDates.map((date) => {
 				let total = 0;

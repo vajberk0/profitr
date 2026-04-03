@@ -117,8 +117,8 @@ export const market = {
 	search: (q: string) => request<TickerSearchResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
 	quote: (symbols: string[]) =>
 		request<Record<string, QuoteResult>>(`/api/market/quote?symbols=${symbols.join(',')}`),
-	chart: (symbol: string, range = '1y') =>
-		request<ChartResult>(`/api/market/chart/${symbol}?range=${range}`),
+	chart: (symbol: string, range = '1y', interval = '1d') =>
+		request<ChartResult>(`/api/market/chart/${symbol}?range=${range}&interval=${interval}`),
 	historyPrice: (symbol: string, date: string) =>
 		request<HistoryPriceResult>(`/api/market/history-price?symbol=${symbol}&date=${date}`)
 };
