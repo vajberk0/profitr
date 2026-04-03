@@ -242,16 +242,37 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
         var symbols = transactions.Select(t => t.Symbol).Distinct().ToList();
 
         // Get historical charts for each symbol
-        var chartRange = range switch
+        // For "all", pick the smallest Yahoo range that covers the actual portfolio span
+        // so we get daily data instead of weekly/monthly from "max"
+        string chartRange;
+        if (range == "all")
         {
-            "1w" => "5d",
-            "1m" => "1mo",
-            "3m" => "3mo",
-            "6m" => "6mo",
-            "1y" => "1y",
-            "all" => "max",
-            _ => "1y"
-        };
+            var daysSpan = (DateTime.UtcNow - startDate).TotalDays;
+            chartRange = daysSpan switch
+            {
+                <= 7 => "5d",
+                <= 30 => "1mo",
+                <= 90 => "3mo",
+                <= 180 => "6mo",
+                <= 365 => "1y",
+                <= 730 => "2y",
+                <= 1825 => "5y",
+                <= 3650 => "10y",
+                _ => "max"
+            };
+        }
+        else
+        {
+            chartRange = range switch
+            {
+                "1w" => "5d",
+                "1m" => "1mo",
+                "3m" => "3mo",
+                "6m" => "6mo",
+                "1y" => "1y",
+                _ => "1y"
+            };
+        }
 
         var charts = new Dictionary<string, ChartResult>();
         foreach (var symbol in symbols)
