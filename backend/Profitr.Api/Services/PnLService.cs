@@ -392,6 +392,63 @@ public class PnLService(YahooFinanceService yahoo, FxService fx)
                 if (totalValue != 0)
                     points.Add(new ChartDataPoint(timestamp, totalValue));
             }
+
+            // If today is a weekday and not yet represented in the hourly data,
+            // add a synthetic point for "now" using the latest available prices.
+            // Yahoo's 5d range may not include today (e.g. Monday before market opens).
+            var now = DateTime.UtcNow;
+            if (now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday
+                && (points.Count == 0 || points[^1].Date.Date < now.Date))
+            {
+                var todayStr = now.ToString("yyyy-MM-dd");
+                decimal todayValue = 0;
+
+                var holdingsToday = transactions
+                    .Where(t => t.TransactionDate.Date <= now.Date)
+                    .GroupBy(t => t.Symbol)
+                    .Select(g => new
+                    {
+                        Symbol = g.Key,
+                        NativeCurrency = g.First().NativeCurrency,
+                        Quantity = g.Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity)
+                    })
+                    .Where(h => h.Quantity > 0);
+
+                foreach (var holding in holdingsToday)
+                {
+                    decimal price = 0;
+                    if (charts.TryGetValue(holding.Symbol, out var chart))
+                    {
+                        var point = chart.Points.LastOrDefault() ?? chart.Points.FirstOrDefault();
+                        if (point != null) price = point.Close;
+                    }
+                    todayValue += holding.Quantity * price * GetFxRateForDate(holding.NativeCurrency, todayStr);
+                }
+
+                decimal cashToday = 0;
+                foreach (var ct in cashTransactions.Where(c => c.TransactionDate.Date <= now.Date))
+                {
+                    var amount = ct.Amount * GetFxRateForDate(ct.Currency, ct.TransactionDate.ToString("yyyy-MM-dd"));
+                    cashToday += ct.Type == CashTransactionType.Deposit ? amount : -amount;
+                }
+                foreach (var txn in transactions.Where(t => t.TransactionDate.Date <= now.Date))
+                {
+                    var amount = txn.Quantity * txn.PricePerUnit * GetFxRateForDate(txn.NativeCurrency, txn.TransactionDate.ToString("yyyy-MM-dd"));
+                    cashToday += txn.Type == TransactionType.Buy ? -amount : amount;
+                }
+                foreach (var div in dividends.Where(d => d.PayDate.Date <= now.Date))
+                {
+                    var qtyAtExDate = transactions
+                        .Where(t => t.Symbol == div.Symbol && t.TransactionDate.Date <= div.ExDate.Date)
+                        .Sum(t => t.Type == TransactionType.Buy ? t.Quantity : -t.Quantity);
+                    if (qtyAtExDate > 0)
+                        cashToday += div.AmountPerShare * qtyAtExDate * GetFxRateForDate(div.NativeCurrency, div.PayDate.ToString("yyyy-MM-dd"));
+                }
+
+                todayValue += cashToday;
+                if (todayValue != 0)
+                    points.Add(new ChartDataPoint(now, todayValue));
+            }
         }
         else
         {
